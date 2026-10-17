@@ -91,6 +91,7 @@ export function createSaveController(options: SaveControllerOptions): SaveContro
 
     running = (async () => {
       inFlight = true;
+      lastError = null;
 
       while (pending) {
         const snapshot = pending;
@@ -130,6 +131,7 @@ export function createSaveController(options: SaveControllerOptions): SaveContro
       pending = project;
       seq += 1;
       pendingSeq = seq;
+      lastError = null;
       clearPendingTimer();
       timer = setTimer(() => {
         timer = null;

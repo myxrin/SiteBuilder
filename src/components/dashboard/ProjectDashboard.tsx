@@ -117,12 +117,19 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
 
   const handleConfirmRename = async () => {
     if (!renameModalProject || !renameValue.trim()) return;
-    const fullProject = await StorageService.getProject(renameModalProject.id);
-    if (fullProject) {
-      fullProject.name = renameValue.trim();
-      await StorageService.saveProject(fullProject);
+    try {
+      const fullProject = await StorageService.getProject(renameModalProject.id);
+      if (fullProject) {
+        fullProject.name = renameValue.trim();
+        await StorageService.saveProject(fullProject);
+        setRenameModalProject(null);
+        await loadProjects();
+      } else {
+        setRenameModalProject(null);
+      }
+    } catch (err) {
+      console.error('Rename failed', err);
       setRenameModalProject(null);
-      loadProjects();
     }
   };
 
@@ -133,9 +140,14 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
 
   const handleConfirmDelete = async () => {
     if (!deleteConfirmProject) return;
-    await StorageService.deleteProject(deleteConfirmProject.id);
-    setDeleteConfirmProject(null);
-    loadProjects();
+    try {
+      await StorageService.deleteProject(deleteConfirmProject.id);
+      setDeleteConfirmProject(null);
+      await loadProjects();
+    } catch (err) {
+      console.error('Delete failed', err);
+      setDeleteConfirmProject(null);
+    }
   };
 
   const handleImportFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -388,6 +400,12 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
               className="modal-input"
               value={projectNameInput}
               onChange={(e) => setProjectNameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleCreate();
+                }
+              }}
               autoFocus
             />
           </div>
@@ -461,6 +479,12 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
               className="modal-input"
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleConfirmRename();
+                }
+              }}
               autoFocus
             />
           </div>

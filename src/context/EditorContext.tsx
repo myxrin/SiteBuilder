@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Project,
   Page,
@@ -258,16 +258,23 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({
 
   const updatePage = useCallback((pageId: string, updates: Partial<Page>) => {
     commitProjectChange(latest => {
+      if (updates.isHome) {
+        const pages = latest.pages.map(page => {
+          if (page.id !== pageId) {
+            const cleanSlug = page.slug === '/'
+              ? `/${page.name.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'page'}`
+              : page.slug;
+            return { ...page, isHome: false, slug: cleanSlug };
+          }
+          return { ...page, ...updates, isHome: true, id: page.id };
+        });
+        return { ...latest, pages };
+      }
+
       const pages = latest.pages.map(page => {
-        if (page.id !== pageId) {
-          if (updates.isHome) return { ...page, isHome: false };
-          return page;
-        }
+        if (page.id !== pageId) return page;
         return { ...page, ...updates, id: page.id };
       });
-      if (updates.isHome) {
-        return { ...latest, pages: pages.map(p => ({ ...p, isHome: p.id === pageId })) };
-      }
       return { ...latest, pages };
     });
   }, [commitProjectChange]);
@@ -794,7 +801,7 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({
     };
   }, [saveController]);
 
-  const value: EditorContextType = {
+  const value: EditorContextType = useMemo(() => ({
     project,
     activePageId,
     activePage,
@@ -846,7 +853,52 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({
 
     exportZip,
     exportProjectFile
-  };
+  }), [
+    project,
+    activePageId,
+    activePage,
+    activeViewport,
+    selectedElementId,
+    selectedElement,
+    hoveredElementId,
+    activeSidebarTab,
+    zoomLevel,
+    isPreviewMode,
+    saveStatus,
+    history.past.length,
+    history.future.length,
+    assets,
+    exportWarnings,
+    setActivePageId,
+    setActiveViewport,
+    setSelectedElementId,
+    setHoveredElementId,
+    setActiveSidebarTab,
+    setZoomLevel,
+    setIsPreviewMode,
+    undo,
+    redo,
+    saveProject,
+    updateProjectName,
+    updateProjectSettings,
+    addPage,
+    updatePage,
+    deletePage,
+    duplicatePage,
+    addElement,
+    updateElementProps,
+    updateElementStyles,
+    renameElement,
+    resetViewportStyles,
+    moveElement,
+    duplicateElement,
+    deleteElement,
+    uploadAsset,
+    deleteAsset,
+    insertAssetAsImage,
+    exportZip,
+    exportProjectFile
+  ]);
 
   return (
     <EditorContext.Provider value={value}>

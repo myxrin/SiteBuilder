@@ -450,6 +450,12 @@ export const FullscreenPreview: React.FC = () => {
           color: #fff;
         }
 
+        .preview-page-select .dropdown-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 105;
+        }
+
         .preview-dropdown-menu {
           position: absolute;
           top: calc(100% + 4px);
@@ -459,7 +465,7 @@ export const FullscreenPreview: React.FC = () => {
           border: 1px solid #3e4252;
           border-radius: 6px;
           box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-          z-index: 20;
+          z-index: 110;
           padding: 4px;
         }
 

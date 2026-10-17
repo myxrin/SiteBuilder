@@ -36,6 +36,7 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
     project,
     selectedElementId,
     hoveredElementId,
+    zoomLevel,
     setSelectedElementId,
     setHoveredElementId,
     updateElementProps,
@@ -52,6 +53,7 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
   // Inline text editing state for headings and paragraphs
   const [isEditingInline, setIsEditingInline] = useState(false);
   const textRef = useRef<any>(null);
+  const initialInlineTextRef = useRef<string>('');
 
   // Broken / missing image reporting (canvas only — the export never ships a
   // placeholder that could overwrite content).
@@ -148,10 +150,32 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
     setHoveredElementId(null);
   };
 
+  const startInlineEdit = () => {
+    if (['heading', 'paragraph', 'button'].includes(element.type)) {
+      initialInlineTextRef.current = element.props.text || (
+        element.type === 'heading' ? 'Heading' : element.type === 'paragraph' ? 'Paragraph text goes here.' : 'Button'
+      );
+      setIsEditingInline(true);
+    }
+  };
+
+  useEffect(() => {
+    if (isEditingInline && textRef.current) {
+      textRef.current.focus();
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(textRef.current);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      } catch {}
+    }
+  }, [isEditingInline]);
+
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (['heading', 'paragraph', 'button'].includes(element.type)) {
       e.stopPropagation();
-      setIsEditingInline(true);
+      startInlineEdit();
     }
   };
 
@@ -184,8 +208,9 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!dragStartRef.current) return;
-      const dx = moveEvent.clientX - dragStartRef.current.startX;
-      const dy = moveEvent.clientY - dragStartRef.current.startY;
+      const scale = Math.max(0.1, (zoomLevel || 100) / 100);
+      const dx = (moveEvent.clientX - dragStartRef.current.startX) / scale;
+      const dy = (moveEvent.clientY - dragStartRef.current.startY) / scale;
 
       const newLeft = `${dragStartRef.current.origLeft + dx}px`;
       const newTop = `${dragStartRef.current.origTop + dy}px`;
@@ -229,8 +254,9 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
       if (!dragStartRef.current || moveEv.touches.length !== 1) return;
       if (moveEv.cancelable) moveEv.preventDefault();
       const t = moveEv.touches[0];
-      const dx = t.clientX - dragStartRef.current.startX;
-      const dy = t.clientY - dragStartRef.current.startY;
+      const scale = Math.max(0.1, (zoomLevel || 100) / 100);
+      const dx = (t.clientX - dragStartRef.current.startX) / scale;
+      const dy = (t.clientY - dragStartRef.current.startY) / scale;
 
       const newLeft = `${dragStartRef.current.origLeft + dx}px`;
       const newTop = `${dragStartRef.current.origTop + dy}px`;
@@ -292,6 +318,7 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
     switch (element.type) {
       case 'heading': {
         const Tag = (`h${element.props.headingLevel || 2}`) as any;
+        const defaultText = element.props.text || 'Heading';
         return (
           <Tag
             ref={textRef}
@@ -299,13 +326,16 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
             suppressContentEditableWarning
             onBlur={handleInlineBlur}
             style={{ outline: isEditingInline ? '1px dashed var(--accent)' : 'none' }}
-          >
-            {element.props.text || 'Heading'}
-          </Tag>
+            {...(isEditingInline
+              ? { dangerouslySetInnerHTML: { __html: initialInlineTextRef.current } }
+              : { children: defaultText }
+            )}
+          />
         );
       }
 
-      case 'paragraph':
+      case 'paragraph': {
+        const defaultText = element.props.text || 'Paragraph text goes here.';
         return (
           <p
             ref={textRef}
@@ -313,12 +343,16 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
             suppressContentEditableWarning
             onBlur={handleInlineBlur}
             style={{ outline: isEditingInline ? '1px dashed var(--accent)' : 'none' }}
-          >
-            {element.props.text || 'Paragraph text goes here.'}
-          </p>
+            {...(isEditingInline
+              ? { dangerouslySetInnerHTML: { __html: initialInlineTextRef.current } }
+              : { children: defaultText }
+            )}
+          />
         );
+      }
 
-      case 'button':
+      case 'button': {
+        const defaultText = element.props.text || 'Button';
         return (
           <button
             ref={textRef}
@@ -335,10 +369,13 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
               width: '100%',
               outline: isEditingInline ? '1px dashed var(--accent)' : 'none'
             }}
-          >
-            {element.props.text || 'Button'}
-          </button>
+            {...(isEditingInline
+              ? { dangerouslySetInnerHTML: { __html: initialInlineTextRef.current } }
+              : { children: defaultText }
+            )}
+          />
         );
+      }
 
       case 'image':
         if (!element.props.src || imageFailed) {
@@ -513,7 +550,7 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
                 className="badge-btn edit-btn"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsEditingInline(true);
+                  startInlineEdit();
                 }}
                 title="Edit text inline"
                 aria-label={`Edit text of ${element.name}`}

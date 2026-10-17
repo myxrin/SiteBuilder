@@ -13,8 +13,8 @@ accessibility, touch interaction, Firebase integration honesty and automated cov
 | Area | Evidence | Status |
 | --- | --- | --- |
 | Type safety | `npx tsc --noEmit` | PASS |
-| Unit/integration tests | `npm test` → **10 files, 80/80 tests** | PASS |
-| Production build | `npm run build` — main 325 kB; EditorWorkspace 198 kB + jszip 96 kB lazy | PASS |
+| Unit/integration tests | `npm test` → **10 files, 82/82 tests** | PASS |
+| Production build | `npm run build` — main 326 kB; EditorWorkspace 200 kB + jszip 96 kB lazy | PASS |
 | Editor E2E | `node e2e/run-e2e.mjs` → 16/16 | PASS |
 | Crash recovery E2E | `node e2e/crash-recovery.mjs` → 3/3 | PASS |
 | Import E2E | `node e2e/import-e2e.mjs` → 3/3 | PASS |
@@ -27,11 +27,24 @@ accessibility, touch interaction, Firebase integration honesty and automated cov
 | Dependency audit | `npm audit --omit=dev` → 0 vulnerabilities | PASS |
 | Firebase live login/sign-in | needs a real Firebase project + accounts | NOT VERIFIED |
 
-Totals: **80 unit tests, 80 browser E2E checks across 8 suites.**
+Totals: **82 unit tests, 80 browser E2E checks across 8 suites.**
 
 ---
 
 ## Done in this session (newest first)
+
+1. **Audit Defect Fixes & Exporter Hardening (82 unit tests, 80 E2E checks)**:
+   - **Inline Edit Protection**: Isolated `contentEditable` text reconciliation with `dangerouslySetInnerHTML` on initial render so background re-renders never clobber text being typed.
+   - **Zoom-scaled Dragging**: Canvas element repositioning now divides mouse/touch deltas by `scale = zoomLevel / 100`, eliminating drag drift when zoomed.
+   - **Background Image Asset Extraction & Mapping**: Exporter now extracts `url('data:image/...')` from styles and responsive overrides into the ZIP's `assets/` folder, and replaces occurrences in `styles.css` with `../assets/img_X.ext`.
+   - **HTML/CSS/JS Minification**: Added `minifyCSS`, `minifyHTML`, and `minifyJS` when `options.minify: true` is passed to `exportProjectToZip`.
+   - **Homepage Promotion Integrity**: Setting a new homepage cleanly clears `isHome` on other pages and re-slugs old root pages to avoid duplicate `/` routing conflicts.
+   - **Background Image Inspector Double-Wrap Fix**: Created `extractRawBgUrl` helper to prevent nested `url('url(...)')` corruption.
+   - **SaveController Recovery**: Resets `lastError = null` when a new edit is queued or save run begins, preventing sticky error badges.
+   - **DraggableModal Safety**: Added viewport boundary clamping to prevent dragging off-screen, `{ passive: false }` touch listeners, and removed animation transform conflicts.
+   - **FullscreenPreview Dropdown Fix**: Raised `.preview-dropdown-menu` to `z-index: 110` above the `z-index: 105` backdrop.
+   - **Context Memoization**: Wrapped `EditorContext.value` in `useMemo` to eliminate unnecessary app-wide re-renders.
+   - **Dashboard & Inspector Usability**: Added Enter key submission to dashboard modals, error handling for rename/delete, and enlarged `.nav-link-remove` touch targets.
 
 1. **Mobile UX Overhaul & Complete Touch Parity (17/17 checks)**:
    - **Floating Selected Element Bar**: When any element is selected on mobile, a floating quick action bar docks above the bottom bar, providing 1-tap access to Inspect, Parent selection, Duplicate, Delete, and Deselect with comfortable touch targets.

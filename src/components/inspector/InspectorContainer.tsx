@@ -29,6 +29,13 @@ const SHADOW_PRESETS = [
   { label: 'Strong', value: '0 16px 40px rgba(15, 23, 42, 0.18)' }
 ];
 
+function extractRawBgUrl(bg?: string): string {
+  if (!bg) return '';
+  const trimmed = bg.trim();
+  const match = trimmed.match(/^url\((['"]?)(.*?)\1\)$/i);
+  return match ? match[2].trim() : trimmed;
+}
+
 export const InspectorContainer: React.FC = () => {
   const {
     project,
@@ -1284,8 +1291,11 @@ export const InspectorContainer: React.FC = () => {
                 type="text"
                 className="input-control font-mono"
                 placeholder="https://... or /assets/img"
-                value={currentStyles.backgroundImage || ''}
-                onChange={(e) => handleStyleInput('backgroundImage', e.target.value ? `url('${e.target.value.trim()}')` : '')}
+                value={extractRawBgUrl(currentStyles.backgroundImage)}
+                onChange={(e) => {
+                  const raw = extractRawBgUrl(e.target.value);
+                  handleStyleInput('backgroundImage', raw ? `url('${raw}')` : '');
+                }}
               />
             </div>
 
@@ -1849,8 +1859,15 @@ export const InspectorContainer: React.FC = () => {
 
           .input-control,
           .select-control,
-          .color-hex-input {
+          .textarea-control,
+          .color-hex-input,
+          .color-picker-input {
             min-height: 38px;
+          }
+
+          .nav-link-remove {
+            width: 40px;
+            height: 40px;
           }
 
           .align-preset-btn,

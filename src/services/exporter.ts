@@ -25,16 +25,13 @@ export function generatePageFilenames(project: Project): Map<string, string> {
   const used = new Set<string>();
   const result = new Map<string, string>();
 
-  project.pages.forEach((page, index) => {
+  project.pages.forEach((page) => {
     let filename = slugToFilename(page.slug, page.isHome);
     if (used.has(filename)) {
       const base = filename.replace(/\.html$/, '');
       let counter = 2;
       while (used.has(`${base}-${counter}.html`)) counter += 1;
       filename = `${base}-${counter}.html`;
-    }
-    if (used.has(filename)) {
-      filename = `page-${index + 1}.html`;
     }
     used.add(filename);
     result.set(page.id, filename);
@@ -43,7 +40,7 @@ export function generatePageFilenames(project: Project): Map<string, string> {
   return result;
 }
 
-export function cssRulesToString(styles?: Partial<ElementStyles>): string {
+export function cssRulesToString(styles?: Partial<ElementStyles>, assetMap?: Map<string, string>): string {
   if (!styles) return '';
   const rules: string[] = [];
 
@@ -111,7 +108,19 @@ export function cssRulesToString(styles?: Partial<ElementStyles>): string {
 
   // Visuals & Backgrounds
   pushString('background-color', styles.backgroundColor);
-  pushString('background-image', styles.backgroundImage);
+
+  if (styles.backgroundImage) {
+    let bg = styles.backgroundImage;
+    if (assetMap && assetMap.size > 0) {
+      for (const [dataUrl, relativePath] of assetMap.entries()) {
+        if (bg.includes(dataUrl)) {
+          bg = bg.replace(dataUrl, `../${relativePath}`);
+        }
+      }
+    }
+    pushString('background-image', bg);
+  }
+
   pushString('background-size', styles.backgroundSize);
   pushString('background-position', styles.backgroundPosition);
   if (typeof styles.opacity === 'number' && Number.isFinite(styles.opacity)) {
@@ -133,7 +142,7 @@ export function cssRulesToString(styles?: Partial<ElementStyles>): string {
   return rules.join('\n  ');
 }
 
-export function generateProjectCSS(project: Project): string {
+export function generateProjectCSS(project: Project, assetMap?: Map<string, string>): string {
   const desktopRules: string[] = [];
   const tabletRules: string[] = [];
   const mobileRules: string[] = [];
@@ -145,20 +154,20 @@ export function generateProjectCSS(project: Project): string {
       if (processed.has(el.id)) continue;
       processed.add(el.id);
 
-      const dRule = cssRulesToString(el.styles);
+      const dRule = cssRulesToString(el.styles, assetMap);
       if (dRule) {
         desktopRules.push(`.sb-${el.id} {\n  ${dRule}\n}`);
       }
 
       if (el.responsiveStyles?.tablet) {
-        const tRule = cssRulesToString(el.responsiveStyles.tablet);
+        const tRule = cssRulesToString(el.responsiveStyles.tablet, assetMap);
         if (tRule) {
           tabletRules.push(`.sb-${el.id} {\n  ${tRule}\n}`);
         }
       }
 
       if (el.responsiveStyles?.mobile) {
-        const mRule = cssRulesToString(el.responsiveStyles.mobile);
+        const mRule = cssRulesToString(el.responsiveStyles.mobile, assetMap);
         if (mRule) {
           mobileRules.push(`.sb-${el.id} {\n  ${mRule}\n}`);
         }
@@ -1033,6 +1042,30 @@ export function collectExportWarnings(project: Project): string[] {
   return Array.from(new Set(warnings));
 }
 
+export function minifyCSS(css: string): string {
+  return css
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*([{}:;,])\s*/g, '$1')
+    .replace(/;}/g, '}')
+    .trim();
+}
+
+export function minifyHTML(html: string): string {
+  return html
+    .replace(/<!--(?!\[if)[\s\S]*?-->/g, '')
+    .replace(/>\s+</g, '><')
+    .trim();
+}
+
+export function minifyJS(js: string): string {
+  return js
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|\n)\s*\/\/[^\n]*/g, '')
+    .replace(/\n\s*\n/g, '\n')
+    .trim();
+}
+
 export async function exportProjectToZip(project: Project, options: ExportOptions = {}): Promise<Blob> {
   // JSZip is ~100 kB of the bundle and is only needed when a ZIP export is
   // actually requested, so it is loaded on demand.
@@ -1063,15 +1096,24 @@ export async function exportProjectToZip(project: Project, options: ExportOption
     return filename;
   };
 
-  // Pre-scan for assets (element sources + project media library)
+  const extractDataUrl = (val?: string): string | null => {
+    if (!val) return null;
+    const match = val.match(/data:image\/[a-zA-Z+]+;base64,[^'")\s]+/);
+    return match ? match[0] : null;
+  };
+
+  // Pre-scan for assets (element sources + project media library + background images)
   for (const page of project.pages) {
     for (const el of Object.values(page.elements)) {
       if (el.props.src && el.props.src.startsWith('data:image/')) {
         processAsset(el.props.src);
       }
-      if (el.styles?.backgroundImage && el.styles.backgroundImage.startsWith('data:image/')) {
-        processAsset(el.styles.backgroundImage);
-      }
+      const baseBg = extractDataUrl(el.styles?.backgroundImage);
+      if (baseBg) processAsset(baseBg);
+      const tabBg = extractDataUrl(el.responsiveStyles?.tablet?.backgroundImage);
+      if (tabBg) processAsset(tabBg);
+      const mobBg = extractDataUrl(el.responsiveStyles?.mobile?.backgroundImage);
+      if (mobBg) processAsset(mobBg);
     }
   }
   for (const asset of project.assets || []) {
@@ -1083,24 +1125,32 @@ export async function exportProjectToZip(project: Project, options: ExportOption
   const filenames = generatePageFilenames(project);
 
   // Generate CSS
-  const cssContent = generateProjectCSS(project);
+  let cssContent = generateProjectCSS(project, assetMap);
+  if (options.minify) {
+    cssContent = minifyCSS(cssContent);
+  }
   zip.file('css/styles.css', cssContent);
 
   // Generate JS
-  const jsContent = generateClientJS(project);
+  let jsContent = generateClientJS(project);
+  if (options.minify) {
+    jsContent = minifyJS(jsContent);
+  }
   zip.file('js/main.js', jsContent);
 
   // Generate HTML for each page
   for (const page of project.pages) {
     const filename = filenames.get(page.id) || slugToFilename(page.slug, page.isHome);
-    const html = generatePageHTML(page, project, assetMap, filenames);
+    let html = generatePageHTML(page, project, assetMap, filenames);
+    if (options.minify) {
+      html = minifyHTML(html);
+    }
     zip.file(filename, html);
   }
 
   // Generate README
   zip.file('README.md', generateReadme(project));
 
-  void options;
   return await zip.generateAsync({ type: 'blob' });
 }
 

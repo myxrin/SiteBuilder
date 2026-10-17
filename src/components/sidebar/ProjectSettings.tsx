@@ -107,8 +107,8 @@ export const ProjectSettings: React.FC = () => {
         customCss: current.customCss,
         firebaseConfig: {
           ...normalizeFirebaseConfig(current.firebaseConfig),
-          // `enabled` is derived from the real requirement, never trusted blindly.
-          enabled: isFirebaseConfigured(current.firebaseConfig)
+          // Enabled when the user opted in and the required fields are configured.
+          enabled: Boolean(current.firebaseConfig.enabled && isFirebaseConfigured(current.firebaseConfig))
         }
       };
 

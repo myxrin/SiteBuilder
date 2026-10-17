@@ -50,15 +50,24 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
 
     const handleMove = (moveEv: MouseEvent | TouchEvent) => {
       if (!dragRef.current) return;
+      if ('touches' in moveEv && moveEv.cancelable) {
+        moveEv.preventDefault();
+      }
       const moveX = 'touches' in moveEv ? moveEv.touches[0].clientX : moveEv.clientX;
       const moveY = 'touches' in moveEv ? moveEv.touches[0].clientY : moveEv.clientY;
 
       const dx = moveX - dragRef.current.startX;
       const dy = moveY - dragRef.current.startY;
 
+      const maxDeltaX = Math.max(0, (window.innerWidth - 80) / 2);
+      const maxDeltaY = Math.max(0, (window.innerHeight - 80) / 2);
+
+      const nextX = Math.min(maxDeltaX, Math.max(-maxDeltaX, dragRef.current.posX + dx));
+      const nextY = Math.min(maxDeltaY, Math.max(-maxDeltaY, dragRef.current.posY + dy));
+
       setPosition({
-        x: dragRef.current.posX + dx,
-        y: dragRef.current.posY + dy
+        x: nextX,
+        y: nextY
       });
     };
 
@@ -72,7 +81,7 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
 
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleEnd);
-    window.addEventListener('touchmove', handleMove);
+    window.addEventListener('touchmove', handleMove, { passive: false });
     window.addEventListener('touchend', handleEnd);
   };
 
@@ -142,8 +151,8 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
         }
 
         @keyframes modalAppear {
-          from { opacity: 0; transform: scale(0.96); }
-          to { opacity: 1; transform: scale(1); }
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
 
         .modal-drag-header {

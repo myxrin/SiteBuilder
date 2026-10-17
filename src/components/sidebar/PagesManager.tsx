@@ -8,7 +8,8 @@ import {
   Settings,
   Check,
   X,
-  AlertTriangle
+  AlertTriangle,
+  AlertCircle
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import { Page } from '../../types/document';
@@ -32,6 +33,7 @@ export const PagesManager: React.FC = () => {
   // following the page name (previously it froze after the first keystroke).
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -91,6 +93,7 @@ export const PagesManager: React.FC = () => {
     }
 
     updatePage(pageId, {
+      name: title,
       title,
       slug,
       description: editDesc.trim()
@@ -100,6 +103,7 @@ export const PagesManager: React.FC = () => {
   };
 
   const handleDelete = (page: Page) => {
+    setActionError(null);
     if (project.pages.length <= 1) {
       // The delete button is hidden in this case; guard anyway.
       setConfirmingDeleteId(null);
@@ -107,7 +111,7 @@ export const PagesManager: React.FC = () => {
     }
     const result = deletePage(page.id);
     if (!result.ok && result.message) {
-      setAddError(result.message);
+      setActionError(result.message);
     }
     setConfirmingDeleteId(null);
   };
@@ -129,6 +133,21 @@ export const PagesManager: React.FC = () => {
           <span>New Page</span>
         </button>
       </div>
+
+      {actionError && (
+        <div className="pages-action-error" role="alert">
+          <AlertCircle size={14} />
+          <span>{actionError}</span>
+          <button
+            type="button"
+            className="action-error-dismiss"
+            onClick={() => setActionError(null)}
+            aria-label="Dismiss error"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {isAdding && (
         <div className="add-page-card">
@@ -543,6 +562,28 @@ export const PagesManager: React.FC = () => {
           font-size: 12px;
           font-weight: 600;
           color: var(--text-primary);
+        }
+
+        .pages-action-error {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 12px;
+          margin-bottom: 12px;
+          background: rgba(239, 68, 68, 0.12);
+          border: 1px solid rgba(239, 68, 68, 0.35);
+          border-radius: 6px;
+          color: #fca5a5;
+          font-size: 12px;
+        }
+
+        .action-error-dismiss {
+          margin-left: auto;
+          background: none;
+          border: none;
+          color: inherit;
+          cursor: pointer;
+          font-size: 13px;
         }
 
         .text-accent {

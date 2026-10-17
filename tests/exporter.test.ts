@@ -137,4 +137,30 @@ describe('Website Exporter Pipeline', () => {
     expect(indexHtml).toContain('src="assets/img_1.png"');
     expect(indexHtml).not.toContain('src="data:image/png;base64');
   });
+
+  it('replaces background-image data URLs with mapped assets path in cssRulesToString', () => {
+    const assetMap = new Map<string, string>([
+      ['data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'assets/img_1.png']
+    ]);
+
+    const css = cssRulesToString({
+      backgroundImage: `url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==')`
+    }, assetMap);
+
+    expect(css).toContain(`background-image: url('../assets/img_1.png');`);
+    expect(css).not.toContain('data:image/png');
+  });
+
+  it('minifies CSS, HTML, and JS correctly when requested', async () => {
+    const project = createStarterProject('Minify Test');
+    const blob = await exportProjectToZip(project, { minify: true });
+    const zip = await JSZip.loadAsync(blob);
+
+    const css = await zip.file('css/styles.css')!.async('string');
+    expect(css).not.toContain('/* SiteBuilder Generated Stylesheet */');
+    expect(css).not.toContain('\n\n');
+
+    const html = await zip.file('index.html')!.async('string');
+    expect(html).not.toContain('>\n  <');
+  });
 });

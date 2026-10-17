@@ -562,10 +562,17 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ onBackToDashboard }) => 
       </div>
 
       {exportNotice && exportNotice.length > 0 && (
-        <div className="export-notice" role="alert">
+        <div
+          className={`export-notice ${exportNotice.some(m => m.toLowerCase().includes('failed')) ? 'error' : ''}`}
+          role="alert"
+        >
           <div className="export-notice-head">
             <AlertCircle size={14} />
-            <span>Export completed with {exportNotice.length} warning{exportNotice.length > 1 ? 's' : ''}</span>
+            <span>
+              {exportNotice.some(m => m.toLowerCase().includes('failed'))
+                ? 'Export failed'
+                : `Export completed with ${exportNotice.length} warning${exportNotice.length > 1 ? 's' : ''}`}
+            </span>
             <button
               className="export-notice-close"
               onClick={() => setExportNotice(null)}
@@ -1037,6 +1044,11 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ onBackToDashboard }) => 
           color: var(--text-primary);
         }
 
+        .export-notice.error {
+          border-color: rgba(239, 68, 68, 0.45);
+          background: rgba(239, 68, 68, 0.08);
+        }
+
         .export-notice-head {
           display: flex;
           align-items: center;
@@ -1044,6 +1056,10 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ onBackToDashboard }) => 
           font-weight: 600;
           color: var(--accent);
           margin-bottom: 6px;
+        }
+
+        .export-notice.error .export-notice-head {
+          color: var(--danger);
         }
 
         .export-notice-head span {
