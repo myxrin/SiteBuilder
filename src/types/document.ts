@@ -133,6 +133,19 @@ export interface Page {
   elements: Record<string, SiteElement>;
 }
 
+export interface FirebaseOptions {
+  enableAuth?: boolean;
+  enableGoogleAuth?: boolean;
+  enableEmailAuth?: boolean;
+  enableAnonymousAuth?: boolean;
+  enableAnalytics?: boolean;
+  enableFirestore?: boolean;
+  enableRealtimeDb?: boolean;
+  enableStorage?: boolean;
+  persistence?: 'LOCAL' | 'SESSION' | 'NONE';
+  defaultRedirect?: string;
+}
+
 export interface FirebaseConfig {
   apiKey: string;
   authDomain: string;
@@ -140,7 +153,10 @@ export interface FirebaseConfig {
   storageBucket?: string;
   messagingSenderId?: string;
   appId?: string;
+  measurementId?: string;
+  databaseURL?: string;
   enabled: boolean;
+  options?: FirebaseOptions;
 }
 
 export interface ProjectSettings {

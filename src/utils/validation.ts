@@ -431,6 +431,20 @@ function sanitizePageElements(
 function sanitizeFirebaseConfig(value: unknown): FirebaseConfig | undefined {
   if (!isRecord(value)) return undefined;
 
+  const rawOpts = isRecord(value.options) ? (value.options as Record<string, unknown>) : {};
+  const options = {
+    enableAuth: rawOpts.enableAuth !== undefined ? Boolean(rawOpts.enableAuth) : true,
+    enableGoogleAuth: rawOpts.enableGoogleAuth !== undefined ? Boolean(rawOpts.enableGoogleAuth) : true,
+    enableEmailAuth: rawOpts.enableEmailAuth !== undefined ? Boolean(rawOpts.enableEmailAuth) : true,
+    enableAnonymousAuth: Boolean(rawOpts.enableAnonymousAuth),
+    enableAnalytics: rawOpts.enableAnalytics !== undefined ? Boolean(rawOpts.enableAnalytics) : Boolean(value.measurementId),
+    enableFirestore: Boolean(rawOpts.enableFirestore),
+    enableRealtimeDb: rawOpts.enableRealtimeDb !== undefined ? Boolean(rawOpts.enableRealtimeDb) : Boolean(value.databaseURL),
+    enableStorage: rawOpts.enableStorage !== undefined ? Boolean(rawOpts.enableStorage) : Boolean(value.storageBucket),
+    persistence: (rawOpts.persistence === 'SESSION' || rawOpts.persistence === 'NONE' ? rawOpts.persistence : 'LOCAL') as 'LOCAL' | 'SESSION' | 'NONE',
+    defaultRedirect: sanitizePlainText(rawOpts.defaultRedirect, 200).trim() || '/'
+  };
+
   const config: FirebaseConfig = {
     apiKey: sanitizePlainText(value.apiKey, 300).trim(),
     authDomain: sanitizePlainText(value.authDomain, 300).trim(),
@@ -438,7 +452,10 @@ function sanitizeFirebaseConfig(value: unknown): FirebaseConfig | undefined {
     storageBucket: sanitizePlainText(value.storageBucket, 300).trim() || undefined,
     messagingSenderId: sanitizePlainText(value.messagingSenderId, 100).trim() || undefined,
     appId: sanitizePlainText(value.appId, 300).trim() || undefined,
-    enabled: false
+    measurementId: sanitizePlainText(value.measurementId, 100).trim() || undefined,
+    databaseURL: sanitizePlainText(value.databaseURL, 300).trim() || undefined,
+    enabled: false,
+    options
   };
 
   config.enabled = Boolean(value.enabled) && Boolean(config.apiKey && config.projectId);

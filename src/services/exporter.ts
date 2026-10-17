@@ -647,10 +647,31 @@ export function generatePageHTML(
     ? renderElementToHTML(rootEl, page.elements, hrefIndex, assetMap, firebaseEnabled)
     : '';
 
-  const firebaseScripts = firebaseEnabled ? `
-  <!-- Firebase App & Auth SDK (v10 compat build) -->
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>` : '';
+  const config = project.settings?.firebaseConfig;
+  let firebaseScripts = '';
+  if (firebaseEnabled && config) {
+    const opts = config.options || {};
+    const tags: string[] = [
+      '<!-- Firebase SDK (v10 compat build) -->',
+      '<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>'
+    ];
+    if (opts.enableAuth !== false) {
+      tags.push('<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>');
+    }
+    if (opts.enableAnalytics && config.measurementId) {
+      tags.push('<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics-compat.js"></script>');
+    }
+    if (opts.enableFirestore) {
+      tags.push('<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>');
+    }
+    if (opts.enableRealtimeDb && config.databaseURL) {
+      tags.push('<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>');
+    }
+    if (opts.enableStorage && config.storageBucket) {
+      tags.push('<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>');
+    }
+    firebaseScripts = '\n  ' + tags.join('\n  ');
+  }
 
   const title = page.title || project.settings?.siteTitle || project.name || 'Website';
   const description = page.description || '';
@@ -689,13 +710,17 @@ export function generateClientJS(project: Project): string {
         projectId: config.projectId,
         storageBucket: config.storageBucket,
         messagingSenderId: config.messagingSenderId,
-        appId: config.appId
+        appId: config.appId,
+        ...(config.measurementId ? { measurementId: config.measurementId } : {}),
+        ...(config.databaseURL ? { databaseURL: config.databaseURL } : {})
       }
     : null;
 
   const fbConfigJson = firebaseConfigPayload
     ? JSON.stringify(firebaseConfigPayload, null, 2)
     : 'null';
+
+  const persistenceMode = config?.options?.persistence || 'LOCAL';
 
   return `/* SiteBuilder Vanilla Client Runtime — no editor dependencies required. */
 (function () {
@@ -725,8 +750,6 @@ export function generateClientJS(project: Project): string {
 
   function setupAuth() {
     var forms = document.querySelectorAll('.sb-firebase-auth-form');
-    if (!forms.length) return;
-
     var fbConfig = ${fbConfigJson};
     var auth = null;
     var initError = null;
@@ -736,11 +759,23 @@ export function generateClientJS(project: Project): string {
         if (!firebase.apps.length) {
           firebase.initializeApp(fbConfig);
         }
-        auth = firebase.auth();
+        if (typeof firebase.analytics === 'function' && fbConfig.measurementId) {
+          try { firebase.analytics(); } catch (e) { /* analytics init */ }
+        }
+        if (typeof firebase.auth === 'function') {
+          auth = firebase.auth();
+          if (firebase.auth.Auth && firebase.auth.Auth.Persistence) {
+            var persistMode = '${persistenceMode}';
+            var pType = firebase.auth.Auth.Persistence[persistMode] || firebase.auth.Auth.Persistence.LOCAL;
+            auth.setPersistence(pType).catch(function () {});
+          }
+        }
       } catch (error) {
         initError = error;
       }
     }
+
+    if (!forms.length) return;
 
     // Maps Firebase error codes to plain-language messages.
     function friendlyAuthError(error) {

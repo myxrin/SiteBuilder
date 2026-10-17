@@ -179,6 +179,26 @@ describe('parseFirebaseConfigJson', () => {
     expect(result.recognized).toBe(false);
     expect(result.error).toBeTruthy();
   });
+
+  it('parses a full 8-key Firebase snippet with measurementId and databaseURL', () => {
+    const snippet = `{
+      "apiKey": "AIzaSyA1234567890abcdefghijklmnopq",
+      "authDomain": "demo.firebaseapp.com",
+      "databaseURL": "https://demo-123-default-rtdb.firebaseio.com",
+      "projectId": "demo-123",
+      "storageBucket": "demo-123.firebasestorage.app",
+      "messagingSenderId": "123456789",
+      "appId": "1:123456789:web:abc123",
+      "measurementId": "G-ABC123XYZ"
+    }`;
+
+    const result = parseFirebaseConfigJson(snippet);
+    expect(result.recognized).toBe(true);
+    expect(result.config?.measurementId).toBe('G-ABC123XYZ');
+    expect(result.config?.databaseURL).toBe('https://demo-123-default-rtdb.firebaseio.com');
+    expect(result.config?.storageBucket).toBe('demo-123.firebasestorage.app');
+    expect(result.missing).toEqual([]);
+  });
 });
 
 describe('checkFirebaseApiKey', () => {

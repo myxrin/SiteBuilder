@@ -12,7 +12,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
-import { FirebaseConfig, ProjectSettings as ProjectSettingsType } from '../../types/document';
+import { FirebaseConfig, FirebaseOptions, ProjectSettings as ProjectSettingsType } from '../../types/document';
 import {
   FIREBASE_CONFIG_FIELDS,
   checkFirebaseApiKey,
@@ -139,12 +139,29 @@ export const ProjectSettings: React.FC = () => {
     setDraft(prev => ({ ...prev, [key]: value }));
   };
 
-  const updateFirebaseField = (key: keyof FirebaseConfig, value: string) => {
+  const updateFirebaseField = (key: keyof Omit<FirebaseConfig, 'options' | 'enabled'>, value: string) => {
     setKeyCheck(null);
     setDraft(prev => ({
       ...prev,
       firebaseConfig: { ...normalizeFirebaseConfig(prev.firebaseConfig), [key]: value }
     }));
+  };
+
+  const updateFirebaseOption = <K extends keyof FirebaseOptions>(key: K, value: FirebaseOptions[K]) => {
+    setKeyCheck(null);
+    setDraft(prev => {
+      const cur = normalizeFirebaseConfig(prev.firebaseConfig);
+      return {
+        ...prev,
+        firebaseConfig: {
+          ...cur,
+          options: {
+            ...cur.options,
+            [key]: value
+          }
+        }
+      };
+    });
   };
 
   const handleJsonPaste = (val: string) => {
@@ -166,13 +183,28 @@ export const ProjectSettings: React.FC = () => {
     setDraft(prev => {
       const merged = normalizeFirebaseConfig(prev.firebaseConfig);
       const incoming = result.config!;
-      (Object.keys(incoming) as Array<keyof FirebaseConfig>).forEach(key => {
-        if (key === 'enabled') return;
+      const keysToCopy: Array<keyof Omit<FirebaseConfig, 'enabled' | 'options'>> = [
+        'apiKey',
+        'authDomain',
+        'projectId',
+        'appId',
+        'storageBucket',
+        'messagingSenderId',
+        'measurementId',
+        'databaseURL'
+      ];
+      keysToCopy.forEach(key => {
         const value = incoming[key];
         if (typeof value === 'string' && value) {
           (merged as unknown as Record<string, unknown>)[key] = value;
         }
       });
+      if (incoming.measurementId) {
+        merged.options = { ...merged.options, enableAnalytics: true };
+      }
+      if (incoming.databaseURL) {
+        merged.options = { ...merged.options, enableRealtimeDb: true };
+      }
       merged.enabled = prev.firebaseConfig.enabled;
       return { ...prev, firebaseConfig: merged };
     });
@@ -339,6 +371,142 @@ export const ProjectSettings: React.FC = () => {
                   </div>
                 );
               })}
+
+              {/* Firebase Feature & Service Options */}
+              <div className="fb-options-box">
+                <div className="fb-options-header">
+                  <span className="fb-options-title">Firebase Options &amp; Services</span>
+                  <span className="fb-options-subtitle">Pilihan modul SDK, provider login, dan konfigurasi sesi</span>
+                </div>
+
+                <div className="fb-options-grid">
+                  <div className="fb-option-group">
+                    <span className="fb-group-heading">Authentication Providers</span>
+                    <label className="fb-option-checkbox-row" htmlFor="sb-fb-opt-email">
+                      <input
+                        id="sb-fb-opt-email"
+                        type="checkbox"
+                        checked={draft.firebaseConfig.options?.enableEmailAuth ?? true}
+                        onChange={(e) => updateFirebaseOption('enableEmailAuth', e.target.checked)}
+                      />
+                      <span className="fb-opt-text">
+                        <strong>Email &amp; Password Auth</strong>
+                        <small>Izinkan user mendaftar dan login dengan email &amp; password</small>
+                      </span>
+                    </label>
+
+                    <label className="fb-option-checkbox-row" htmlFor="sb-fb-opt-google">
+                      <input
+                        id="sb-fb-opt-google"
+                        type="checkbox"
+                        checked={draft.firebaseConfig.options?.enableGoogleAuth ?? true}
+                        onChange={(e) => updateFirebaseOption('enableGoogleAuth', e.target.checked)}
+                      />
+                      <span className="fb-opt-text">
+                        <strong>Google Sign-In Provider</strong>
+                        <small>Login cepat 1-klik menggunakan popup akun Google</small>
+                      </span>
+                    </label>
+
+                    <label className="fb-option-checkbox-row" htmlFor="sb-fb-opt-anon">
+                      <input
+                        id="sb-fb-opt-anon"
+                        type="checkbox"
+                        checked={draft.firebaseConfig.options?.enableAnonymousAuth ?? false}
+                        onChange={(e) => updateFirebaseOption('enableAnonymousAuth', e.target.checked)}
+                      />
+                      <span className="fb-opt-text">
+                        <strong>Anonymous / Guest Login</strong>
+                        <small>Akses sesi tamu tanpa memerlukan data akun</small>
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="fb-option-group">
+                    <span className="fb-group-heading">Session &amp; Redirect</span>
+                    <div className="setting-subgroup">
+                      <label htmlFor="sb-fb-opt-persistence">Session Persistence</label>
+                      <select
+                        id="sb-fb-opt-persistence"
+                        className="select-field"
+                        value={draft.firebaseConfig.options?.persistence || 'LOCAL'}
+                        onChange={(e) => updateFirebaseOption('persistence', e.target.value as 'LOCAL' | 'SESSION' | 'NONE')}
+                      >
+                        <option value="LOCAL">LOCAL — Tetap login meskipun browser ditutup</option>
+                        <option value="SESSION">SESSION — Logout otomatis saat tab ditutup</option>
+                        <option value="NONE">NONE — Tidak menyimpan sesi (hanya memori)</option>
+                      </select>
+                    </div>
+
+                    <div className="setting-subgroup">
+                      <label htmlFor="sb-fb-opt-redirect">Default Redirect URL</label>
+                      <input
+                        id="sb-fb-opt-redirect"
+                        type="text"
+                        className="input-field font-mono"
+                        placeholder="/ or /dashboard"
+                        value={draft.firebaseConfig.options?.defaultRedirect || '/'}
+                        onChange={(e) => updateFirebaseOption('defaultRedirect', e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="fb-option-group">
+                    <span className="fb-group-heading">Modular SDK Services</span>
+                    <label className="fb-option-checkbox-row" htmlFor="sb-fb-opt-analytics">
+                      <input
+                        id="sb-fb-opt-analytics"
+                        type="checkbox"
+                        checked={draft.firebaseConfig.options?.enableAnalytics ?? Boolean(draft.firebaseConfig.measurementId)}
+                        onChange={(e) => updateFirebaseOption('enableAnalytics', e.target.checked)}
+                      />
+                      <span className="fb-opt-text">
+                        <strong>Google Analytics 4</strong>
+                        <small>Sertakan SDK analitik web (memerlukan Measurement ID)</small>
+                      </span>
+                    </label>
+
+                    <label className="fb-option-checkbox-row" htmlFor="sb-fb-opt-rtdb">
+                      <input
+                        id="sb-fb-opt-rtdb"
+                        type="checkbox"
+                        checked={draft.firebaseConfig.options?.enableRealtimeDb ?? Boolean(draft.firebaseConfig.databaseURL)}
+                        onChange={(e) => updateFirebaseOption('enableRealtimeDb', e.target.checked)}
+                      />
+                      <span className="fb-opt-text">
+                        <strong>Realtime Database</strong>
+                        <small>Sertakan SDK database realtime (memerlukan Database URL)</small>
+                      </span>
+                    </label>
+
+                    <label className="fb-option-checkbox-row" htmlFor="sb-fb-opt-firestore">
+                      <input
+                        id="sb-fb-opt-firestore"
+                        type="checkbox"
+                        checked={draft.firebaseConfig.options?.enableFirestore ?? false}
+                        onChange={(e) => updateFirebaseOption('enableFirestore', e.target.checked)}
+                      />
+                      <span className="fb-opt-text">
+                        <strong>Cloud Firestore</strong>
+                        <small>Sertakan SDK NoSQL document database Firestore</small>
+                      </span>
+                    </label>
+
+                    <label className="fb-option-checkbox-row" htmlFor="sb-fb-opt-storage">
+                      <input
+                        id="sb-fb-opt-storage"
+                        type="checkbox"
+                        checked={draft.firebaseConfig.options?.enableStorage ?? Boolean(draft.firebaseConfig.storageBucket)}
+                        onChange={(e) => updateFirebaseOption('enableStorage', e.target.checked)}
+                      />
+                      <span className="fb-opt-text">
+                        <strong>Cloud Storage</strong>
+                        <small>Sertakan SDK upload &amp; file storage (memerlukan Bucket)</small>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
 
               <div className="fb-actions-row">
                 <button
@@ -629,6 +797,109 @@ export const ProjectSettings: React.FC = () => {
           height: 18px;
           accent-color: var(--accent);
           flex-shrink: 0;
+        }
+
+        .fb-options-box {
+          background: rgba(15, 23, 42, 0.4);
+          border: 1px solid var(--border-subtle);
+          border-radius: var(--radius-sm);
+          padding: 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          margin-top: 4px;
+        }
+
+        .fb-options-header {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          padding-bottom: 6px;
+          border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .fb-options-title {
+          font-size: 11.5px;
+          font-weight: 700;
+          color: var(--accent-light);
+        }
+
+        .fb-options-subtitle {
+          font-size: 10px;
+          color: var(--text-muted);
+        }
+
+        .fb-options-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .fb-option-group {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .fb-group-heading {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          color: var(--text-secondary);
+          margin-bottom: 2px;
+        }
+
+        .fb-option-checkbox-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          padding: 4px 6px;
+          border-radius: var(--radius-sm);
+          cursor: pointer;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid transparent;
+          transition: background 0.15s;
+        }
+
+        .fb-option-checkbox-row:hover {
+          background: rgba(255, 255, 255, 0.05);
+          border-color: var(--border-subtle);
+        }
+
+        .fb-option-checkbox-row input[type="checkbox"] {
+          margin-top: 2px;
+          accent-color: var(--accent);
+          width: 15px;
+          height: 15px;
+          flex-shrink: 0;
+        }
+
+        .fb-opt-text {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+        }
+
+        .fb-opt-text strong {
+          font-size: 11px;
+          color: var(--text-primary);
+        }
+
+        .fb-opt-text small {
+          font-size: 9.5px;
+          color: var(--text-muted);
+        }
+
+        .setting-subgroup {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .setting-subgroup label {
+          font-size: 10.5px;
+          color: var(--text-secondary);
         }
 
         .fb-actions-row { display: flex; gap: 6px; }

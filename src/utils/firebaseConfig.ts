@@ -10,23 +10,59 @@ import { FirebaseConfig } from '../types/document';
  * be stored in a project or exported. Only the public web config is handled here.
  */
 
-export const FIREBASE_CONFIG_FIELDS: Array<{
-  key: keyof FirebaseConfig;
+export const FIREBASE_CORE_FIELDS: Array<{
+  key: keyof Omit<FirebaseConfig, 'enabled' | 'options'>;
   label: string;
   placeholder: string;
   required: boolean;
+  description: string;
 }> = [
-  { key: 'apiKey', label: 'API Key', placeholder: 'AIza...', required: true },
-  { key: 'authDomain', label: 'Auth Domain', placeholder: 'your-app.firebaseapp.com', required: false },
-  { key: 'projectId', label: 'Project ID', placeholder: 'your-project-id', required: true },
-  { key: 'appId', label: 'App ID', placeholder: '1:123456789:web:abcdef', required: false },
-  { key: 'storageBucket', label: 'Storage Bucket', placeholder: 'your-app.appspot.com', required: false },
+  { key: 'apiKey', label: 'API Key', placeholder: 'AIza...', required: true, description: 'Client Web API key from Firebase Console' },
+  { key: 'authDomain', label: 'Auth Domain', placeholder: 'your-app.firebaseapp.com', required: false, description: 'Domain for Auth redirects and OAuth popups' },
+  { key: 'projectId', label: 'Project ID', placeholder: 'your-project-id', required: true, description: 'Unique Firebase project identifier' },
+  { key: 'appId', label: 'App ID', placeholder: '1:123456789:web:abcdef', required: false, description: 'Firebase web application registration ID' },
+  { key: 'storageBucket', label: 'Storage Bucket', placeholder: 'your-app.appspot.com', required: false, description: 'Cloud Storage default bucket' },
   {
     key: 'messagingSenderId',
     label: 'Messaging Sender ID',
     placeholder: '123456789',
-    required: false
+    required: false,
+    description: 'Cloud Messaging numeric sender ID'
   }
+];
+
+export const FIREBASE_EXTENDED_FIELDS: Array<{
+  key: keyof Omit<FirebaseConfig, 'enabled' | 'options'>;
+  label: string;
+  placeholder: string;
+  required: boolean;
+  description: string;
+}> = [
+  {
+    key: 'measurementId',
+    label: 'Measurement ID (Analytics)',
+    placeholder: 'G-XXXXXXXXXX',
+    required: false,
+    description: 'Google Analytics 4 Measurement ID for web traffic'
+  },
+  {
+    key: 'databaseURL',
+    label: 'Database URL (Realtime DB)',
+    placeholder: 'https://your-project-default-rtdb.firebaseio.com',
+    required: false,
+    description: 'Endpoint URL for Firebase Realtime Database'
+  }
+];
+
+export const FIREBASE_CONFIG_FIELDS: Array<{
+  key: keyof Omit<FirebaseConfig, 'enabled' | 'options'>;
+  label: string;
+  placeholder: string;
+  required: boolean;
+  description?: string;
+}> = [
+  ...FIREBASE_CORE_FIELDS,
+  ...FIREBASE_EXTENDED_FIELDS
 ];
 
 // NOTE: no lookbehind/lookahead here — older Safari versions throw on those.
@@ -35,6 +71,7 @@ const API_KEY_PATTERN = /^AIza[0-9A-Za-z_-]{10,}$/;
 const APP_ID_PATTERN = /^\d+:\d+:(web|android|ios):[0-9a-fA-F]+$/;
 const HOST_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i;
 const BUCKET_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$/i;
+const MEASUREMENT_ID_PATTERN = /^G-[0-9A-Za-z_-]+$/;
 
 function asTrimmedString(value: unknown, maxLength: number): string {
   if (typeof value !== 'string') return '';
@@ -44,6 +81,21 @@ function asTrimmedString(value: unknown, maxLength: number): string {
 /** Normalizes a (possibly partial / imported) Firebase config without dropping fields. */
 export function normalizeFirebaseConfig(value?: Partial<FirebaseConfig> | null): FirebaseConfig {
   const source = (value || {}) as Record<string, unknown>;
+  const rawOpts = (source.options || {}) as Record<string, unknown>;
+
+  const options = {
+    enableAuth: rawOpts.enableAuth !== undefined ? Boolean(rawOpts.enableAuth) : true,
+    enableGoogleAuth: rawOpts.enableGoogleAuth !== undefined ? Boolean(rawOpts.enableGoogleAuth) : true,
+    enableEmailAuth: rawOpts.enableEmailAuth !== undefined ? Boolean(rawOpts.enableEmailAuth) : true,
+    enableAnonymousAuth: Boolean(rawOpts.enableAnonymousAuth),
+    enableAnalytics: rawOpts.enableAnalytics !== undefined ? Boolean(rawOpts.enableAnalytics) : Boolean(source.measurementId),
+    enableFirestore: Boolean(rawOpts.enableFirestore),
+    enableRealtimeDb: rawOpts.enableRealtimeDb !== undefined ? Boolean(rawOpts.enableRealtimeDb) : Boolean(source.databaseURL),
+    enableStorage: rawOpts.enableStorage !== undefined ? Boolean(rawOpts.enableStorage) : Boolean(source.storageBucket),
+    persistence: (rawOpts.persistence as 'LOCAL' | 'SESSION' | 'NONE') || 'LOCAL',
+    defaultRedirect: asTrimmedString(rawOpts.defaultRedirect, 200) || '/'
+  };
+
   const config: FirebaseConfig = {
     apiKey: asTrimmedString(source.apiKey, 300),
     authDomain: asTrimmedString(source.authDomain, 300),
@@ -51,7 +103,10 @@ export function normalizeFirebaseConfig(value?: Partial<FirebaseConfig> | null):
     storageBucket: asTrimmedString(source.storageBucket, 300),
     messagingSenderId: asTrimmedString(source.messagingSenderId, 100),
     appId: asTrimmedString(source.appId, 300),
-    enabled: Boolean(source.enabled)
+    measurementId: asTrimmedString(source.measurementId, 100),
+    databaseURL: asTrimmedString(source.databaseURL, 300),
+    enabled: Boolean(source.enabled),
+    options
   };
   return config;
 }
@@ -75,7 +130,10 @@ export function firebaseConfigsEqual(
     left.storageBucket === right.storageBucket &&
     left.messagingSenderId === right.messagingSenderId &&
     left.appId === right.appId &&
-    left.enabled === right.enabled
+    left.measurementId === right.measurementId &&
+    left.databaseURL === right.databaseURL &&
+    left.enabled === right.enabled &&
+    JSON.stringify(left.options) === JSON.stringify(right.options)
   );
 }
 
@@ -137,6 +195,18 @@ export function validateFirebaseConfig(draft: Partial<FirebaseConfig>): Firebase
     warnings.messagingSenderId = 'Sender ids are numeric.';
   }
 
+  if (config.measurementId && !MEASUREMENT_ID_PATTERN.test(config.measurementId)) {
+    warnings.measurementId = 'Measurement IDs look like "G-XXXXXXXXXX".';
+  }
+
+  if (config.databaseURL) {
+    if (!/^https:\/\//i.test(config.databaseURL)) {
+      warnings.databaseURL = 'Database URLs must start with "https://" (e.g. https://your-project.firebaseio.com).';
+    } else if (!HOST_PATTERN.test(config.databaseURL.replace(/^https:\/\//i, '').split('/')[0])) {
+      warnings.databaseURL = 'This does not look like a valid database host.';
+    }
+  }
+
   return { errors, warnings };
 }
 
@@ -191,14 +261,25 @@ export function parseFirebaseConfigJson(raw: string): ParsedFirebaseConfigJson {
       ? (record.firebaseConfig as Record<string, unknown>)
       : record;
 
-  const recognizedKeys = FIREBASE_CONFIG_FIELDS.map(field => field.key as string).filter(
+  const ALL_KEYS = [
+    'apiKey',
+    'authDomain',
+    'projectId',
+    'appId',
+    'storageBucket',
+    'messagingSenderId',
+    'measurementId',
+    'databaseURL'
+  ];
+
+  const recognizedKeys = ALL_KEYS.filter(
     key => typeof nested[key] === 'string' && String(nested[key]).trim()
   );
 
   if (recognizedKeys.length === 0) {
     return {
       recognized: false,
-      missing: FIREBASE_CONFIG_FIELDS.map(field => field.label),
+      missing: FIREBASE_CORE_FIELDS.map(field => field.label),
       error: 'No Firebase fields were found (expected apiKey, authDomain, projectId, ...).'
     };
   }
@@ -206,7 +287,7 @@ export function parseFirebaseConfigJson(raw: string): ParsedFirebaseConfigJson {
   return {
     recognized: true,
     config: normalizeFirebaseConfig(nested as Partial<FirebaseConfig>),
-    missing: FIREBASE_CONFIG_FIELDS.filter(
+    missing: FIREBASE_CORE_FIELDS.filter(
       field => !recognizedKeys.includes(field.key as string)
     ).map(field => field.label)
   };
