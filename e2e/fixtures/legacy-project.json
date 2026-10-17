@@ -1,0 +1,24 @@
+{
+  "id": "proj_legacy_test",
+  "name": "Legacy Import Site",
+  "createdAt": 1700000000000,
+  "updatedAt": 1700000000000,
+  "schemaVersion": 1,
+  "settings": { "siteTitle": "Legacy", "defaultFont": "Inter, sans-serif", "primaryColor": "#f59e0b", "customCss": "" },
+  "pages": [
+    {
+      "id": "page_home",
+      "name": "Home",
+      "slug": "/",
+      "isHome": true,
+      "title": "Legacy Home",
+      "description": "",
+      "rootElementId": "root_1",
+      "elements": {
+        "root_1": { "id": "root_1", "type": "container", "name": "Root", "parentId": null, "children": ["head_1"], "props": {}, "styles": { "width": "100%" }, "responsiveStyles": {} },
+        "head_1": { "id": "head_1", "type": "heading", "name": "Hero", "parentId": "root_1", "children": [], "props": { "text": "Legacy Heading", "headingLevel": 1 }, "styles": {}, "responsiveStyles": {} }
+      }
+    }
+  ],
+  "assets": []
+}
