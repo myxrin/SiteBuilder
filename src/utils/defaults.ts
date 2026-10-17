@@ -301,11 +301,28 @@ export function createBlankPage(name: string = 'New Page', slug: string = '/new-
 export function createStarterProject(name: string = 'My Website'): Project {
   const projId = generateId('proj');
 
-  // Create starter Home page
-  const homeRootId = generateId('root');
-  const elements: Record<string, SiteElement> = {};
+  // Helper to create and attach an element to parent and elements registry
+  const add = (
+    elementsMap: Record<string, SiteElement>,
+    type: ElementType,
+    parentId: string | null,
+    overrides?: Partial<SiteElement>
+  ): SiteElement => {
+    const el = createElement(type, parentId, overrides);
+    elementsMap[el.id] = el;
+    if (parentId && elementsMap[parentId]) {
+      elementsMap[parentId].children.push(el.id);
+    }
+    return el;
+  };
 
-  const rootEl: SiteElement = {
+  // ==========================================
+  // 1. HOME PAGE
+  // ==========================================
+  const homeRootId = generateId('root');
+  const homeElements: Record<string, SiteElement> = {};
+
+  const homeRootEl: SiteElement = {
     id: homeRootId,
     type: 'container',
     name: 'Page Root',
@@ -320,211 +337,878 @@ export function createStarterProject(name: string = 'My Website'): Project {
     },
     responsiveStyles: {}
   };
-  elements[homeRootId] = rootEl;
+  homeElements[homeRootId] = homeRootEl;
 
-  // 1. Navbar
-  const navEl = createElement('navbar', homeRootId, {
+  // 1.1 Navigation Bar
+  add(homeElements, 'navbar', homeRootId, {
     props: {
-      brandText: 'Apex Studio',
+      brandText: 'Prism',
       brandLink: '/',
       navLinks: [
-        { id: 'n1', label: 'Home', href: '/' },
-        { id: 'n2', label: 'About', href: '/about' },
-        { id: 'n3', label: 'Services', href: '#services' }
+        { id: 'nl_feat', label: 'Features', href: '#features' },
+        { id: 'nl_bench', label: 'Benchmarks', href: '#benchmarks' },
+        { id: 'nl_arch', label: 'Architecture', href: '#architecture' },
+        { id: 'nl_docs', label: 'Docs', href: '/about' }
       ]
+    },
+    styles: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: { top: '16px', right: '32px', bottom: '16px', left: '32px' },
+      backgroundColor: '#090d16',
+      color: '#f8fafc',
+      borderWidth: '0 0 1px 0',
+      borderStyle: 'solid',
+      borderColor: '#1e293b'
+    },
+    responsiveStyles: {
+      mobile: {
+        padding: { top: '14px', right: '16px', bottom: '14px', left: '16px' }
+      }
     }
   });
-  elements[navEl.id] = navEl;
-  rootEl.children.push(navEl.id);
 
-  // 2. Hero Section
-  const heroSection = createElement('section', homeRootId, {
+  // 1.2 Hero Section (Dark Theme, High-Impact Developer Craft)
+  const heroSection = add(homeElements, 'section', homeRootId, {
     name: 'Hero Section',
     styles: {
       padding: { top: '80px', right: '24px', bottom: '80px', left: '24px' },
-      backgroundColor: '#0f172a',
-      color: '#f8fafc'
+      backgroundColor: '#090d16',
+      color: '#f8fafc',
+      display: 'block'
+    },
+    responsiveStyles: {
+      mobile: {
+        padding: { top: '48px', right: '16px', bottom: '56px', left: '16px' }
+      }
     }
   });
-  elements[heroSection.id] = heroSection;
-  rootEl.children.push(heroSection.id);
 
-  const heroContainer = createElement('container', heroSection.id, {
+  const heroContainer = add(homeElements, 'container', heroSection.id, {
     styles: {
-      maxWidth: '860px',
-      margin: { top: '0', right: 'auto', bottom: '0', left: 'auto' },
-      textAlign: 'center'
+      maxWidth: '920px',
+      margin: { top: '0px', right: 'auto', bottom: '0px', left: 'auto' },
+      textAlign: 'center',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center'
     }
   });
-  elements[heroContainer.id] = heroContainer;
-  heroSection.children.push(heroContainer.id);
 
-  const heroHeading = createElement('heading', heroContainer.id, {
+  // Release pill badge
+  add(homeElements, 'paragraph', heroContainer.id, {
+    name: 'Release Pill',
     props: {
-      text: 'Create Stunning Websites Visually',
+      text: 'RELEASE 2.4 — Zero-runtime static HTML5 compiler is live →'
+    },
+    styles: {
+      display: 'inline-block',
+      backgroundColor: '#0f172a',
+      color: '#38bdf8',
+      fontSize: '13px',
+      fontWeight: '600',
+      letterSpacing: '0.04em',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderColor: '#1e293b',
+      borderRadius: '9999px',
+      padding: { top: '6px', right: '16px', bottom: '6px', left: '16px' },
+      margin: { top: '0px', right: '0px', bottom: '24px', left: '0px' }
+    }
+  });
+
+  // Hero Heading (H1)
+  add(homeElements, 'heading', heroContainer.id, {
+    name: 'Hero Heading',
+    props: {
+      text: 'The Visual Workspace for High-Performance Web Apps',
       headingLevel: 1
     },
     styles: {
-      fontSize: '48px',
+      fontSize: '52px',
       fontWeight: '800',
-      lineHeight: '1.15',
+      lineHeight: '1.12',
       color: '#ffffff',
       textAlign: 'center',
-      margin: { top: '0', right: '0', bottom: '20px', left: '0' }
+      letterSpacing: '-0.02em',
+      margin: { top: '0px', right: '0px', bottom: '20px', left: '0px' }
     },
     responsiveStyles: {
-      mobile: { fontSize: '32px' }
+      tablet: { fontSize: '40px' },
+      mobile: { fontSize: '28px', lineHeight: '1.2' }
     }
   });
-  elements[heroHeading.id] = heroHeading;
-  heroContainer.children.push(heroHeading.id);
 
-  const heroParagraph = createElement('paragraph', heroContainer.id, {
+  // Hero Subtitle
+  add(homeElements, 'paragraph', heroContainer.id, {
+    name: 'Hero Subtitle',
     props: {
-      text: 'Empower your creativity with a lightning-fast visual drag-and-drop editor. Design responsive layouts, manage multiple pages, and export clean standalone code instantly.'
+      text: 'Build production layouts visually with deterministic CSS flexbox and grid rules. Zero proprietary runtimes, zero div soup, and zero lock-in. Compile directly to clean, semantic HTML5 and CSS.'
     },
     styles: {
       fontSize: '18px',
-      lineHeight: '1.6',
+      lineHeight: '1.65',
       color: '#94a3b8',
       textAlign: 'center',
-      margin: { top: '0', right: '0', bottom: '32px', left: '0' }
+      maxWidth: '740px',
+      margin: { top: '0px', right: 'auto', bottom: '36px', left: 'auto' }
+    },
+    responsiveStyles: {
+      mobile: { fontSize: '15px', margin: { top: '0px', right: 'auto', bottom: '28px', left: 'auto' } }
     }
   });
-  elements[heroParagraph.id] = heroParagraph;
-  heroContainer.children.push(heroParagraph.id);
 
-  const heroButton = createElement('button', heroContainer.id, {
+  // Hero Action Buttons
+  const heroActions = add(homeElements, 'container', heroContainer.id, {
+    name: 'Hero Actions',
+    styles: {
+      display: 'flex',
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: '16px',
+      flexWrap: 'wrap',
+      margin: { top: '0px', right: '0px', bottom: '48px', left: '0px' }
+    }
+  });
+
+  add(homeElements, 'button', heroActions.id, {
+    name: 'Primary CTA Button',
     props: {
-      text: 'Explore Features',
-      href: '#services'
+      text: 'Start Building — Free',
+      href: '#features'
     },
     styles: {
-      backgroundColor: '#f59e0b',
-      color: '#0f172a',
-      padding: { top: '14px', right: '32px', bottom: '14px', left: '32px' },
-      fontSize: '16px',
-      fontWeight: '700',
-      borderRadius: '8px'
+      backgroundColor: '#2563eb',
+      color: '#ffffff',
+      padding: { top: '14px', right: '28px', bottom: '14px', left: '28px' },
+      borderRadius: '8px',
+      fontWeight: '600',
+      fontSize: '15px',
+      borderWidth: '0px'
     }
   });
-  elements[heroButton.id] = heroButton;
-  heroContainer.children.push(heroButton.id);
 
-  // 3. Features Section
-  const featSection = createElement('section', homeRootId, {
-    name: 'Features Section',
+  add(homeElements, 'button', heroActions.id, {
+    name: 'Secondary CTA Button',
+    props: {
+      text: 'Architecture Specs →',
+      href: '/about'
+    },
     styles: {
-      padding: { top: '80px', right: '24px', bottom: '80px', left: '24px' },
-      backgroundColor: '#f8fafc'
+      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+      color: '#e2e8f0',
+      padding: { top: '14px', right: '28px', bottom: '14px', left: '28px' },
+      borderRadius: '8px',
+      fontWeight: '600',
+      fontSize: '15px',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderColor: '#334155'
     }
   });
-  elements[featSection.id] = featSection;
-  rootEl.children.push(featSection.id);
 
-  const featContainer = createElement('container', featSection.id);
-  elements[featContainer.id] = featContainer;
-  featSection.children.push(featContainer.id);
-
-  const featHeading = createElement('heading', featContainer.id, {
-    props: { text: 'Everything You Need to Ship Faster', headingLevel: 2 },
-    styles: { textAlign: 'center', color: '#0f172a', fontSize: '32px', margin: { top: '0', right: '0', bottom: '12px', left: '0' } }
+  // Hero Showcase Card (Inspector / Terminal Preview)
+  const showcaseCard = add(homeElements, 'card', heroContainer.id, {
+    name: 'Showcase Preview Card',
+    styles: {
+      backgroundColor: '#050811',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderColor: '#1e293b',
+      borderRadius: '12px',
+      padding: { top: '20px', right: '24px', bottom: '20px', left: '24px' },
+      width: '100%',
+      maxWidth: '820px',
+      boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '16px',
+      textAlign: 'left'
+    }
   });
-  elements[featHeading.id] = featHeading;
-  featContainer.children.push(featHeading.id);
 
-  const featSub = createElement('paragraph', featContainer.id, {
-    props: { text: 'No complex setup or lock-in. Designed for creators who value craftsmanship and speed.' },
-    styles: { textAlign: 'center', color: '#64748b', fontSize: '16px', margin: { top: '0', right: '0', bottom: '48px', left: '0' } }
+  const showcaseHeader = add(homeElements, 'container', showcaseCard.id, {
+    name: 'Preview Top Bar',
+    styles: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      width: '100%'
+    }
   });
-  elements[featSub.id] = featSub;
-  featContainer.children.push(featSub.id);
 
-  const gridEl = createElement('grid', featContainer.id);
-  elements[gridEl.id] = gridEl;
-  featContainer.children.push(gridEl.id);
+  const dotGroup = add(homeElements, 'container', showcaseHeader.id, {
+    name: 'Window Controls',
+    styles: {
+      display: 'flex',
+      gap: '8px',
+      alignItems: 'center'
+    }
+  });
 
-  const cardData = [
-    { title: 'Visual Precision', desc: 'Direct manipulation of layout, typography, borders, and spacing with instant live feedback.' },
-    { title: 'Responsive by Nature', desc: 'Seamlessly switch between Desktop, Tablet, and Mobile viewports with custom overrides.' },
-    { title: 'Zero Lock-in Export', desc: 'Download a standalone production ZIP containing semantic HTML, CSS, assets, and clean code.' }
+  add(homeElements, 'shape', dotGroup.id, {
+    props: { shapeType: 'circle' },
+    styles: { width: '10px', height: '10px', backgroundColor: '#ef4444', borderRadius: '9999px' }
+  });
+  add(homeElements, 'shape', dotGroup.id, {
+    props: { shapeType: 'circle' },
+    styles: { width: '10px', height: '10px', backgroundColor: '#f59e0b', borderRadius: '9999px' }
+  });
+  add(homeElements, 'shape', dotGroup.id, {
+    props: { shapeType: 'circle' },
+    styles: { width: '10px', height: '10px', backgroundColor: '#10b981', borderRadius: '9999px' }
+  });
+
+  add(homeElements, 'paragraph', showcaseHeader.id, {
+    name: 'Preview Filename',
+    props: { text: 'dist/index.html — 100/100 Core Web Vitals' },
+    styles: {
+      color: '#64748b',
+      fontSize: '12px',
+      fontFamily: 'monospace',
+      margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
+    }
+  });
+
+  add(homeElements, 'divider', showcaseCard.id, {
+    styles: {
+      width: '100%',
+      height: '1px',
+      backgroundColor: '#1e293b',
+      margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
+    }
+  });
+
+  const showcaseGrid = add(homeElements, 'grid', showcaseCard.id, {
+    name: 'Compiler Specs Grid',
+    styles: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '16px',
+      width: '100%',
+      margin: { top: '4px', right: '0px', bottom: '4px', left: '0px' }
+    },
+    responsiveStyles: {
+      mobile: { gridTemplateColumns: '1fr', gap: '12px' }
+    }
+  });
+
+  const previewStat1 = add(homeElements, 'card', showcaseGrid.id, {
+    styles: {
+      backgroundColor: '#0b1120',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderColor: '#1e293b',
+      borderRadius: '8px',
+      padding: { top: '14px', right: '16px', bottom: '14px', left: '16px' }
+    }
+  });
+  add(homeElements, 'heading', previewStat1.id, {
+    props: { text: '0.00 KB Runtime', headingLevel: 4 },
+    styles: { fontSize: '15px', color: '#10b981', fontWeight: '700', margin: { top: '0px', right: '0px', bottom: '4px', left: '0px' } }
+  });
+  add(homeElements, 'paragraph', previewStat1.id, {
+    props: { text: 'Pure semantic HTML5 with zero client JavaScript bloat.' },
+    styles: { fontSize: '12px', color: '#94a3b8', lineHeight: '1.5', margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' } }
+  });
+
+  const previewStat2 = add(homeElements, 'card', showcaseGrid.id, {
+    styles: {
+      backgroundColor: '#0b1120',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderColor: '#1e293b',
+      borderRadius: '8px',
+      padding: { top: '14px', right: '16px', bottom: '14px', left: '16px' }
+    }
+  });
+  add(homeElements, 'heading', previewStat2.id, {
+    props: { text: '12ms Compile', headingLevel: 4 },
+    styles: { fontSize: '15px', color: '#60a5fa', fontWeight: '700', margin: { top: '0px', right: '0px', bottom: '4px', left: '0px' } }
+  });
+  add(homeElements, 'paragraph', previewStat2.id, {
+    props: { text: 'Instant client-side bundler and static ZIP packager.' },
+    styles: { fontSize: '12px', color: '#94a3b8', lineHeight: '1.5', margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' } }
+  });
+
+  const previewStat3 = add(homeElements, 'card', showcaseGrid.id, {
+    styles: {
+      backgroundColor: '#0b1120',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderColor: '#1e293b',
+      borderRadius: '8px',
+      padding: { top: '14px', right: '16px', bottom: '14px', left: '16px' }
+    }
+  });
+  add(homeElements, 'heading', previewStat3.id, {
+    props: { text: 'Deterministic CSS', headingLevel: 4 },
+    styles: { fontSize: '15px', color: '#f59e0b', fontWeight: '700', margin: { top: '0px', right: '0px', bottom: '4px', left: '0px' } }
+  });
+  add(homeElements, 'paragraph', previewStat3.id, {
+    props: { text: 'Standard CSS Grid & Flexbox rules with zero layout shift.' },
+    styles: { fontSize: '12px', color: '#94a3b8', lineHeight: '1.5', margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' } }
+  });
+
+  // 1.3 Benchmarks & Proof Section
+  const proofSection = add(homeElements, 'section', homeRootId, {
+    name: 'Benchmarks Section',
+    styles: {
+      padding: { top: '64px', right: '24px', bottom: '64px', left: '24px' },
+      backgroundColor: '#ffffff',
+      borderWidth: '0 0 1px 0',
+      borderStyle: 'solid',
+      borderColor: '#e2e8f0'
+    }
+  });
+
+  const proofContainer = add(homeElements, 'container', proofSection.id, {
+    styles: { maxWidth: '1140px', margin: { top: '0px', right: 'auto', bottom: '0px', left: 'auto' } }
+  });
+
+  const proofGrid = add(homeElements, 'grid', proofContainer.id, {
+    name: 'Benchmarks Grid',
+    styles: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(4, 1fr)',
+      gap: '20px'
+    },
+    responsiveStyles: {
+      tablet: { gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' },
+      mobile: { gridTemplateColumns: '1fr', gap: '12px' }
+    }
+  });
+
+  const metrics = [
+    { value: '0 ms', color: '#0f172a', desc: 'Client runtime execution overhead. Zero blocking scripts.' },
+    { value: '100 / 100', color: '#059669', desc: 'Target Lighthouse score for static production exports.' },
+    { value: '100%', color: '#2563eb', desc: 'Code and asset ownership. Stored locally in your browser.' },
+    { value: '1-Click', color: '#7c3aed', desc: 'Standalone ZIP archive generation ready for Git push.' }
   ];
 
-  for (const c of cardData) {
-    const cardEl = createElement('card', gridEl.id);
-    elements[cardEl.id] = cardEl;
-    gridEl.children.push(cardEl.id);
-
-    const cHead = createElement('heading', cardEl.id, {
-      props: { text: c.title, headingLevel: 3 },
-      styles: { fontSize: '20px', fontWeight: '700', color: '#0f172a', margin: { top: '0', right: '0', bottom: '8px', left: '0' } }
+  for (const m of metrics) {
+    const mCard = add(homeElements, 'card', proofGrid.id, {
+      styles: {
+        backgroundColor: '#f8fafc',
+        padding: { top: '24px', right: '20px', bottom: '24px', left: '20px' },
+        borderRadius: '12px',
+        borderWidth: '1px',
+        borderStyle: 'solid',
+        borderColor: '#e2e8f0',
+        textAlign: 'center'
+      }
     });
-    elements[cHead.id] = cHead;
-    cardEl.children.push(cHead.id);
-
-    const cPara = createElement('paragraph', cardEl.id, {
-      props: { text: c.desc },
-      styles: { fontSize: '14px', lineHeight: '1.6', color: '#64748b', margin: { top: '0', right: '0', bottom: '0', left: '0' } }
+    add(homeElements, 'heading', mCard.id, {
+      props: { text: m.value, headingLevel: 3 },
+      styles: { fontSize: '36px', fontWeight: '800', color: m.color, margin: { top: '0px', right: '0px', bottom: '6px', left: '0px' } }
     });
-    elements[cPara.id] = cPara;
-    cardEl.children.push(cPara.id);
+    add(homeElements, 'paragraph', mCard.id, {
+      props: { text: m.desc },
+      styles: { fontSize: '13px', color: '#64748b', lineHeight: '1.5', margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' } }
+    });
   }
 
-  // Home Page
+  // 1.4 Bento Feature Grid Section
+  const featSection = add(homeElements, 'section', homeRootId, {
+    name: 'Features Section',
+    styles: {
+      padding: { top: '88px', right: '24px', bottom: '88px', left: '24px' },
+      backgroundColor: '#f8fafc'
+    },
+    responsiveStyles: {
+      mobile: { padding: { top: '56px', right: '16px', bottom: '56px', left: '16px' } }
+    }
+  });
+
+  const featContainer = add(homeElements, 'container', featSection.id, {
+    styles: { maxWidth: '1140px', margin: { top: '0px', right: 'auto', bottom: '0px', left: 'auto' } }
+  });
+
+  add(homeElements, 'heading', featContainer.id, {
+    name: 'Features Heading',
+    props: {
+      text: 'Features Engineered for Code Quality and Control',
+      headingLevel: 2
+    },
+    styles: {
+      fontSize: '36px',
+      fontWeight: '800',
+      color: '#0f172a',
+      textAlign: 'center',
+      letterSpacing: '-0.02em',
+      margin: { top: '0px', right: '0px', bottom: '14px', left: '0px' }
+    },
+    responsiveStyles: {
+      mobile: { fontSize: '26px' }
+    }
+  });
+
+  add(homeElements, 'paragraph', featContainer.id, {
+    name: 'Features Subtitle',
+    props: {
+      text: 'Visual site building without the bloat. Every element you arrange compiles directly into clean, standards-compliant HTML5 and CSS.'
+    },
+    styles: {
+      fontSize: '17px',
+      lineHeight: '1.6',
+      color: '#64748b',
+      textAlign: 'center',
+      maxWidth: '680px',
+      margin: { top: '0px', right: 'auto', bottom: '52px', left: 'auto' }
+    }
+  });
+
+  const featGrid = add(homeElements, 'grid', featContainer.id, {
+    name: 'Bento Features Grid',
+    styles: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '24px'
+    },
+    responsiveStyles: {
+      tablet: { gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' },
+      mobile: { gridTemplateColumns: '1fr', gap: '16px' }
+    }
+  });
+
+  const featureCards = [
+    {
+      title: 'Deterministic CSS Layouts',
+      desc: 'No absolute positioning spaghetti. Elements compile to native CSS Grid and Flexbox flow rules that adapt smoothly across all viewports.'
+    },
+    {
+      title: 'Multi-Viewport Synchronization',
+      desc: 'Seamlessly configure responsive overrides for Desktop (1200px), Tablet (768px), and Mobile (375px) with live visual verification.'
+    },
+    {
+      title: 'Offline-First Engine',
+      desc: 'All designs and changes auto-persist to LocalStorage with transactional recovery. Work without cloud lag or mandatory accounts.'
+    },
+    {
+      title: 'Automated Asset Pipeline',
+      desc: 'Embedded base64 graphics and background images are cleanly extracted to a dedicated assets/ folder during ZIP compilation.'
+    },
+    {
+      title: 'Zero Vendor Lock-in',
+      desc: 'Export a standalone ZIP containing vanilla HTML, CSS, and JS. Deploy anywhere from GitHub Pages and Netlify to an S3 bucket.'
+    },
+    {
+      title: 'Accessible by Foundation',
+      desc: 'Semantic headings, built-in ARIA landmarks, mobile touch targets (≥44px), and keyboard navigation support right out of the box.'
+    }
+  ];
+
+  for (const f of featureCards) {
+    const fCard = add(homeElements, 'card', featGrid.id, {
+      styles: {
+        backgroundColor: '#ffffff',
+        borderWidth: '1px',
+        borderStyle: 'solid',
+        borderColor: '#e2e8f0',
+        borderRadius: '12px',
+        padding: { top: '24px', right: '24px', bottom: '24px', left: '24px' },
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.04)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px'
+      }
+    });
+
+    add(homeElements, 'heading', fCard.id, {
+      props: { text: f.title, headingLevel: 3 },
+      styles: { fontSize: '18px', fontWeight: '700', color: '#0f172a', margin: { top: '0px', right: '0px', bottom: '6px', left: '0px' } }
+    });
+
+    add(homeElements, 'paragraph', fCard.id, {
+      props: { text: f.desc },
+      styles: { fontSize: '14px', lineHeight: '1.6', color: '#64748b', margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' } }
+    });
+  }
+
+  // 1.5 Architecture Philosophy Quote Section
+  const quoteSection = add(homeElements, 'section', homeRootId, {
+    name: 'Philosophy Section',
+    styles: {
+      padding: { top: '80px', right: '24px', bottom: '80px', left: '24px' },
+      backgroundColor: '#ffffff',
+      borderWidth: '1px 0 1px 0',
+      borderStyle: 'solid',
+      borderColor: '#e2e8f0'
+    }
+  });
+
+  const quoteContainer = add(homeElements, 'container', quoteSection.id, {
+    styles: { maxWidth: '820px', margin: { top: '0px', right: 'auto', bottom: '0px', left: 'auto' } }
+  });
+
+  const quoteCard = add(homeElements, 'card', quoteContainer.id, {
+    name: 'Architecture Quote Card',
+    styles: {
+      backgroundColor: '#0f172a',
+      color: '#ffffff',
+      padding: { top: '40px', right: '36px', bottom: '40px', left: '36px' },
+      borderRadius: '16px',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderColor: '#1e293b',
+      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)'
+    }
+  });
+
+  add(homeElements, 'paragraph', quoteCard.id, {
+    name: 'Philosophy Tag',
+    props: { text: 'ARCHITECTURAL PRINCIPLE' },
+    styles: { color: '#38bdf8', fontSize: '12px', fontWeight: '700', letterSpacing: '0.05em', margin: { top: '0px', right: '0px', bottom: '16px', left: '0px' } }
+  });
+
+  add(homeElements, 'heading', quoteCard.id, {
+    name: 'Philosophy Statement',
+    props: {
+      text: '“Most modern visual builders ship megabytes of JavaScript before rendering a single word. Prism does the opposite: it compiles down to standard HTML and CSS that any engineer can maintain with pride.”',
+      headingLevel: 3
+    },
+    styles: {
+      fontSize: '22px',
+      lineHeight: '1.55',
+      fontWeight: '500',
+      color: '#f8fafc',
+      margin: { top: '0px', right: '0px', bottom: '24px', left: '0px' }
+    },
+    responsiveStyles: {
+      mobile: { fontSize: '18px' }
+    }
+  });
+
+  add(homeElements, 'divider', quoteCard.id, {
+    styles: { width: '100%', height: '1px', backgroundColor: '#334155', margin: { top: '0px', right: '0px', bottom: '16px', left: '0px' } }
+  });
+
+  add(homeElements, 'paragraph', quoteCard.id, {
+    props: { text: 'Elena Vance — Principal Frontend Architect, Edge Platform' },
+    styles: { fontSize: '14px', color: '#94a3b8', margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' } }
+  });
+
+  // 1.6 Pre-Footer CTA Section
+  const ctaSection = add(homeElements, 'section', homeRootId, {
+    name: 'CTA Section',
+    styles: {
+      padding: { top: '80px', right: '24px', bottom: '80px', left: '24px' },
+      backgroundColor: '#090d16',
+      color: '#ffffff',
+      textAlign: 'center',
+      display: 'block'
+    }
+  });
+
+  const ctaContainer = add(homeElements, 'container', ctaSection.id, {
+    styles: {
+      maxWidth: '680px',
+      margin: { top: '0px', right: 'auto', bottom: '0px', left: 'auto' },
+      textAlign: 'center'
+    }
+  });
+
+  add(homeElements, 'heading', ctaContainer.id, {
+    name: 'CTA Heading',
+    props: { text: 'Craft and Ship With Precision', headingLevel: 2 },
+    styles: { fontSize: '36px', fontWeight: '800', color: '#ffffff', margin: { top: '0px', right: '0px', bottom: '16px', left: '0px' } },
+    responsiveStyles: { mobile: { fontSize: '26px' } }
+  });
+
+  add(homeElements, 'paragraph', ctaContainer.id, {
+    name: 'CTA Subtitle',
+    props: { text: 'Experience visual site construction without the typical framework bloat. Free, open source, and completely local.' },
+    styles: { fontSize: '16px', lineHeight: '1.6', color: '#94a3b8', margin: { top: '0px', right: 'auto', bottom: '32px', left: 'auto' } }
+  });
+
+  add(homeElements, 'button', ctaContainer.id, {
+    name: 'CTA Button',
+    props: { text: 'Start Designing Now', href: '#features' },
+    styles: {
+      backgroundColor: '#2563eb',
+      color: '#ffffff',
+      padding: { top: '14px', right: '32px', bottom: '14px', left: '32px' },
+      borderRadius: '8px',
+      fontSize: '15px',
+      fontWeight: '600',
+      borderWidth: '0px'
+    }
+  });
+
+  // 1.7 Clean Multi-Column Footer
+  const footerSection = add(homeElements, 'section', homeRootId, {
+    name: 'Footer Section',
+    styles: {
+      padding: { top: '64px', right: '24px', bottom: '32px', left: '24px' },
+      backgroundColor: '#050811',
+      color: '#94a3b8',
+      borderWidth: '1px 0 0 0',
+      borderStyle: 'solid',
+      borderColor: '#1e293b'
+    }
+  });
+
+  const footerContainer = add(homeElements, 'container', footerSection.id, {
+    styles: { maxWidth: '1140px', margin: { top: '0px', right: 'auto', bottom: '0px', left: 'auto' } }
+  });
+
+  const footerGrid = add(homeElements, 'grid', footerContainer.id, {
+    name: 'Footer Links Grid',
+    styles: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(4, 1fr)',
+      gap: '32px',
+      margin: { top: '0px', right: '0px', bottom: '40px', left: '0px' }
+    },
+    responsiveStyles: {
+      tablet: { gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px' },
+      mobile: { gridTemplateColumns: '1fr', gap: '20px' }
+    }
+  });
+
+  // Col 1: Brand info
+  const footerCol1 = add(homeElements, 'container', footerGrid.id);
+  add(homeElements, 'heading', footerCol1.id, {
+    props: { text: 'Prism Engine', headingLevel: 4 },
+    styles: { color: '#ffffff', fontSize: '16px', fontWeight: '700', margin: { top: '0px', right: '0px', bottom: '12px', left: '0px' } }
+  });
+  add(homeElements, 'paragraph', footerCol1.id, {
+    props: { text: 'A visual workspace engineered for clean, semantic, and high-performance production exports.' },
+    styles: { fontSize: '13px', lineHeight: '1.6', color: '#64748b', margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' } }
+  });
+
+  // Col 2: Product
+  const footerCol2 = add(homeElements, 'container', footerGrid.id);
+  add(homeElements, 'heading', footerCol2.id, {
+    props: { text: 'Product', headingLevel: 4 },
+    styles: { color: '#ffffff', fontSize: '14px', fontWeight: '600', margin: { top: '0px', right: '0px', bottom: '12px', left: '0px' } }
+  });
+  add(homeElements, 'list', footerCol2.id, {
+    props: {
+      listType: 'unordered',
+      listItems: ['Visual Canvas', 'Multi-Viewport Sync', 'Asset Extractor', 'ZIP Packager']
+    },
+    styles: { fontSize: '13px', color: '#94a3b8', lineHeight: '2' }
+  });
+
+  // Col 3: Standards
+  const footerCol3 = add(homeElements, 'container', footerGrid.id);
+  add(homeElements, 'heading', footerCol3.id, {
+    props: { text: 'Standards', headingLevel: 4 },
+    styles: { color: '#ffffff', fontSize: '14px', fontWeight: '600', margin: { top: '0px', right: '0px', bottom: '12px', left: '0px' } }
+  });
+  add(homeElements, 'list', footerCol3.id, {
+    props: {
+      listType: 'unordered',
+      listItems: ['Semantic HTML5', 'Vanilla CSS & Grid', 'WCAG 2.1 AA', 'Zero Runtime Overhead']
+    },
+    styles: { fontSize: '13px', color: '#94a3b8', lineHeight: '2' }
+  });
+
+  // Col 4: Documentation
+  const footerCol4 = add(homeElements, 'container', footerGrid.id);
+  add(homeElements, 'heading', footerCol4.id, {
+    props: { text: 'Documentation', headingLevel: 4 },
+    styles: { color: '#ffffff', fontSize: '14px', fontWeight: '600', margin: { top: '0px', right: '0px', bottom: '12px', left: '0px' } }
+  });
+  add(homeElements, 'list', footerCol4.id, {
+    props: {
+      listType: 'unordered',
+      listItems: ['Architecture Manifesto', 'Local Storage Guide', 'Static Hosting Tips', 'MIT Open Source License']
+    },
+    styles: { fontSize: '13px', color: '#94a3b8', lineHeight: '2' }
+  });
+
+  add(homeElements, 'divider', footerContainer.id, {
+    styles: { width: '100%', height: '1px', backgroundColor: '#1e293b', margin: { top: '0px', right: '0px', bottom: '24px', left: '0px' } }
+  });
+
+  add(homeElements, 'paragraph', footerContainer.id, {
+    props: { text: '© 2026 Prism Engine. Distributed under the MIT License. Built with craftsmanship for the modern web.' },
+    styles: { fontSize: '13px', color: '#475569', textAlign: 'center', margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' } }
+  });
+
+  // Assemble Home Page
   const homePage: Page = {
     id: generateId('page'),
     name: 'Home',
     slug: '/',
     isHome: true,
-    title: 'Home — Apex Studio',
-    description: 'Welcome to Apex Studio modern visual experience.',
+    title: 'Home — Prism Visual Web Engine',
+    description: 'Prism is a precision visual web workspace engineered for clean, semantic, and high-performance production exports.',
     rootElementId: homeRootId,
-    elements
+    elements: homeElements
   };
 
-  // Create starter About page
+  // ==========================================
+  // 2. ABOUT / MANIFESTO PAGE
+  // ==========================================
   const aboutPage = createBlankPage('About', '/about', false);
-  const aboutRoot = aboutPage.elements[aboutPage.rootElementId];
-  
-  const aboutNav = createElement('navbar', aboutPage.rootElementId, {
+  const aboutRootId = aboutPage.rootElementId;
+  const aboutElements = aboutPage.elements;
+
+  // About Navbar
+  add(aboutElements, 'navbar', aboutRootId, {
     props: {
-      brandText: 'Apex Studio',
+      brandText: 'Prism',
       brandLink: '/',
       navLinks: [
         { id: 'an1', label: 'Home', href: '/' },
-        { id: 'an2', label: 'About', href: '/about' }
+        { id: 'an2', label: 'Architecture', href: '/about' }
       ]
+    },
+    styles: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: { top: '16px', right: '32px', bottom: '16px', left: '32px' },
+      backgroundColor: '#090d16',
+      color: '#f8fafc',
+      borderWidth: '0 0 1px 0',
+      borderStyle: 'solid',
+      borderColor: '#1e293b'
     }
   });
-  aboutPage.elements[aboutNav.id] = aboutNav;
-  aboutRoot.children.push(aboutNav.id);
 
-  const aboutSection = createElement('section', aboutPage.rootElementId, {
-    styles: { padding: { top: '60px', right: '24px', bottom: '60px', left: '24px' } }
+  // About Header Section
+  const aboutHeaderSection = add(aboutElements, 'section', aboutRootId, {
+    name: 'Manifesto Header',
+    styles: {
+      padding: { top: '72px', right: '24px', bottom: '72px', left: '24px' },
+      backgroundColor: '#090d16',
+      color: '#ffffff',
+      textAlign: 'center'
+    }
   });
-  aboutPage.elements[aboutSection.id] = aboutSection;
-  aboutRoot.children.push(aboutSection.id);
 
-  const aboutContainer = createElement('container', aboutSection.id, {
-    styles: { maxWidth: '800px', margin: { top: '0', right: 'auto', bottom: '0', left: 'auto' } }
+  const aboutHeaderContainer = add(aboutElements, 'container', aboutHeaderSection.id, {
+    styles: { maxWidth: '820px', margin: { top: '0px', right: 'auto', bottom: '0px', left: 'auto' } }
   });
-  aboutPage.elements[aboutContainer.id] = aboutContainer;
-  aboutSection.children.push(aboutContainer.id);
 
-  const aboutHead = createElement('heading', aboutContainer.id, {
-    props: { text: 'About Our Vision', headingLevel: 1 },
-    styles: { fontSize: '36px', color: '#0f172a' }
+  add(aboutElements, 'paragraph', aboutHeaderContainer.id, {
+    name: 'Manifesto Badge',
+    props: { text: 'CORE ARCHITECTURE SPECIFICATION' },
+    styles: {
+      display: 'inline-block',
+      backgroundColor: '#0f172a',
+      color: '#38bdf8',
+      fontSize: '12px',
+      fontWeight: '700',
+      letterSpacing: '0.04em',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderColor: '#1e293b',
+      borderRadius: '9999px',
+      padding: { top: '6px', right: '16px', bottom: '6px', left: '16px' },
+      margin: { top: '0px', right: '0px', bottom: '20px', left: '0px' }
+    }
   });
-  aboutPage.elements[aboutHead.id] = aboutHead;
-  aboutContainer.children.push(aboutHead.id);
 
-  const aboutPara = createElement('paragraph', aboutContainer.id, {
+  add(aboutElements, 'heading', aboutHeaderContainer.id, {
+    name: 'Manifesto Title',
+    props: { text: 'The Architecture Manifesto', headingLevel: 1 },
+    styles: {
+      fontSize: '44px',
+      fontWeight: '800',
+      color: '#ffffff',
+      letterSpacing: '-0.02em',
+      margin: { top: '0px', right: '0px', bottom: '16px', left: '0px' }
+    },
+    responsiveStyles: {
+      mobile: { fontSize: '30px' }
+    }
+  });
+
+  add(aboutElements, 'paragraph', aboutHeaderContainer.id, {
+    name: 'Manifesto Subtitle',
     props: {
-      text: 'We believe modern web design tools should be transparent, lightning fast, and grant users 100% ownership of their generated code.'
+      text: 'Why we created an offline-first visual editor that outputs pure, readable HTML5 and CSS with zero vendor lock-in.'
+    },
+    styles: {
+      fontSize: '18px',
+      color: '#94a3b8',
+      lineHeight: '1.65',
+      margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
     }
   });
-  aboutPage.elements[aboutPara.id] = aboutPara;
-  aboutContainer.children.push(aboutPara.id);
+
+  // About Content Section
+  const aboutContentSection = add(aboutElements, 'section', aboutRootId, {
+    name: 'Principles Section',
+    styles: {
+      padding: { top: '72px', right: '24px', bottom: '80px', left: '24px' },
+      backgroundColor: '#f8fafc'
+    }
+  });
+
+  const aboutContentContainer = add(aboutElements, 'container', aboutContentSection.id, {
+    styles: {
+      maxWidth: '820px',
+      margin: { top: '0px', right: 'auto', bottom: '0px', left: 'auto' },
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '24px'
+    }
+  });
+
+  const principles = [
+    {
+      num: '1. Web Standards Over Proprietary Runtimes',
+      desc: 'Most visual web builders lock your content into proprietary JSON trees that require heavy JavaScript runtimes to display. Prism does the opposite: the visual editor is simply a visual compiler for standard CSS Grid, Flexbox, and semantic HTML5 tags that any browser understands natively.'
+    },
+    {
+      num: '2. Local-First & Zero Telemetry',
+      desc: 'Your designs and project data live in your local browser storage. We do not require accounts, track your editing activity, or hold your project files hostage behind cloud subscription walls. You own 100% of your source code from day one.'
+    },
+    {
+      num: '3. Deterministic Static Performance',
+      desc: 'Websites exported with Prism achieve 100/100 Core Web Vitals scores because there is zero framework hydration cost, zero external tracking scripts, and zero render blocking. What you design compiles to deterministic, blazing fast static files.'
+    }
+  ];
+
+  for (const p of principles) {
+    const pCard = add(aboutElements, 'card', aboutContentContainer.id, {
+      styles: {
+        backgroundColor: '#ffffff',
+        borderWidth: '1px',
+        borderStyle: 'solid',
+        borderColor: '#e2e8f0',
+        borderRadius: '12px',
+        padding: { top: '28px', right: '28px', bottom: '28px', left: '28px' },
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.04)'
+      }
+    });
+
+    add(aboutElements, 'heading', pCard.id, {
+      props: { text: p.num, headingLevel: 3 },
+      styles: { fontSize: '20px', fontWeight: '700', color: '#0f172a', margin: { top: '0px', right: '0px', bottom: '10px', left: '0px' } }
+    });
+
+    add(aboutElements, 'paragraph', pCard.id, {
+      props: { text: p.desc },
+      styles: { fontSize: '15px', lineHeight: '1.65', color: '#475569', margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' } }
+    });
+  }
+
+  add(aboutElements, 'spacer', aboutContentContainer.id, {
+    styles: { width: '100%', height: '16px' }
+  });
+
+  add(aboutElements, 'button', aboutContentContainer.id, {
+    name: 'Back to Canvas Button',
+    props: { text: '← Back to Visual Canvas', href: '/' },
+    styles: {
+      backgroundColor: '#2563eb',
+      color: '#ffffff',
+      padding: { top: '14px', right: '28px', bottom: '14px', left: '28px' },
+      borderRadius: '8px',
+      fontWeight: '600',
+      fontSize: '15px',
+      display: 'inline-block'
+    }
+  });
 
   return {
     id: projId,
@@ -533,9 +1217,9 @@ export function createStarterProject(name: string = 'My Website'): Project {
     updatedAt: Date.now(),
     schemaVersion: 1,
     settings: {
-      siteTitle: 'Apex Studio',
-      defaultFont: 'Inter, sans-serif',
-      primaryColor: '#f59e0b',
+      siteTitle: 'Prism · Visual Web Engine',
+      defaultFont: 'Inter, -apple-system, sans-serif',
+      primaryColor: '#2563eb',
       customCss: ''
     },
     pages: [homePage, aboutPage],
