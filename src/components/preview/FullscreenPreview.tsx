@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Monitor,
@@ -243,6 +243,29 @@ export const FullscreenPreview: React.FC = () => {
   const [previewViewport, setPreviewViewport] = useState<Viewport>('desktop');
   const [isPageDropdownOpen, setIsPageDropdownOpen] = useState(false);
 
+  // Escape leaves the preview. While the page dropdown is open it is the
+  // topmost transient UI: consume that Escape during the capture phase so the
+  // editor-wide shortcut (which exits preview mode) cannot close everything.
+  useEffect(() => {
+    if (!isPageDropdownOpen) return;
+    const handleCapture = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setIsPageDropdownOpen(false);
+    };
+    window.addEventListener('keydown', handleCapture, true);
+    return () => window.removeEventListener('keydown', handleCapture, true);
+  }, [isPageDropdownOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setIsPreviewMode(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setIsPreviewMode]);
+
   // Map slugs to page IDs for live preview navigation
   const pagesMap: Record<string, string> = {};
   project.pages.forEach(p => {
@@ -263,14 +286,15 @@ export const FullscreenPreview: React.FC = () => {
 
   if (previewViewport === 'tablet') {
     frameWidth = '768px';
-    maxWidth = '768px';
+    // Cap at the available width so narrow phones never get horizontal scroll.
+    maxWidth = '100%';
   } else if (previewViewport === 'mobile') {
     frameWidth = '375px';
-    maxWidth = '375px';
+    maxWidth = '100%';
   }
 
   return (
-    <div className="fullscreen-preview-overlay">
+    <div className="fullscreen-preview-overlay" role="dialog" aria-modal="true" aria-label="Fullscreen preview">
       {/* Floating Control Bar */}
       <div className="preview-topbar">
         <div className="preview-topbar-left">
@@ -281,6 +305,9 @@ export const FullscreenPreview: React.FC = () => {
             <button
               className="preview-page-trigger"
               onClick={() => setIsPageDropdownOpen(!isPageDropdownOpen)}
+              aria-haspopup="menu"
+              aria-expanded={isPageDropdownOpen}
+              aria-label={`Preview page: ${activePage?.name || 'Page'}. Click to switch.`}
             >
               <span>{activePage?.name}</span>
               <ChevronDown size={13} />
@@ -288,10 +315,11 @@ export const FullscreenPreview: React.FC = () => {
             {isPageDropdownOpen && (
               <>
                 <div className="dropdown-backdrop" onClick={() => setIsPageDropdownOpen(false)} />
-                <div className="preview-dropdown-menu">
+                <div className="preview-dropdown-menu" role="menu">
                   {project.pages.map(p => (
                     <button
                       key={p.id}
+                      role="menuitem"
                       className={`preview-page-item ${p.id === activePage?.id ? 'active' : ''}`}
                       onClick={() => {
                         setActivePage(p.id);
@@ -309,11 +337,13 @@ export const FullscreenPreview: React.FC = () => {
         </div>
 
         {/* Viewport Switcher */}
-        <div className="preview-viewport-controls">
+        <div className="preview-viewport-controls" role="group" aria-label="Preview viewport">
           <button
             className={`pv-btn ${previewViewport === 'desktop' ? 'active' : ''}`}
             onClick={() => setPreviewViewport('desktop')}
             title="Desktop"
+            aria-label="Desktop preview"
+            aria-pressed={previewViewport === 'desktop'}
           >
             <Monitor size={14} />
           </button>
@@ -321,6 +351,8 @@ export const FullscreenPreview: React.FC = () => {
             className={`pv-btn ${previewViewport === 'tablet' ? 'active' : ''}`}
             onClick={() => setPreviewViewport('tablet')}
             title="Tablet"
+            aria-label="Tablet preview"
+            aria-pressed={previewViewport === 'tablet'}
           >
             <Tablet size={14} />
           </button>
@@ -328,6 +360,8 @@ export const FullscreenPreview: React.FC = () => {
             className={`pv-btn ${previewViewport === 'mobile' ? 'active' : ''}`}
             onClick={() => setPreviewViewport('mobile')}
             title="Mobile"
+            aria-label="Mobile preview"
+            aria-pressed={previewViewport === 'mobile'}
           >
             <Smartphone size={14} />
           </button>
@@ -338,6 +372,7 @@ export const FullscreenPreview: React.FC = () => {
           className="exit-preview-btn"
           onClick={() => setIsPreviewMode(false)}
           title="Exit Preview (Esc)"
+          aria-label="Exit preview"
         >
           <X size={15} />
           <span>Exit Preview</span>
@@ -505,9 +540,12 @@ export const FullscreenPreview: React.FC = () => {
         .preview-canvas-area {
           flex: 1;
           overflow-y: auto;
+          overflow-x: auto;
           display: flex;
           justify-content: center;
           padding: 20px;
+          padding-bottom: calc(20px + env(safe-area-inset-bottom));
+          -webkit-overflow-scrolling: touch;
         }
 
         .preview-frame {
@@ -527,6 +565,65 @@ export const FullscreenPreview: React.FC = () => {
           border-radius: 20px;
           border: 8px solid #202228;
           height: fit-content;
+        }
+
+        @media (max-width: 640px) {
+          .preview-topbar {
+            padding: 0 8px;
+            padding-left: calc(8px + env(safe-area-inset-left));
+            padding-right: calc(8px + env(safe-area-inset-right));
+            gap: 6px;
+          }
+
+          .preview-topbar-left {
+            gap: 6px;
+            min-width: 0;
+          }
+
+          .preview-badge {
+            display: none;
+          }
+
+          .preview-page-trigger {
+            max-width: 130px;
+          }
+
+          .preview-page-trigger span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .exit-preview-btn span {
+            display: none;
+          }
+
+          .exit-preview-btn {
+            padding: 8px;
+          }
+
+          .preview-canvas-area {
+            padding: 10px;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+          }
+        }
+
+        @media (pointer: coarse) {
+          .pv-btn {
+            width: 44px;
+            height: 40px;
+          }
+
+          .exit-preview-btn,
+          .preview-page-trigger {
+            min-height: 44px;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .preview-frame {
+            transition: none;
+          }
         }
       `}</style>
     </div>

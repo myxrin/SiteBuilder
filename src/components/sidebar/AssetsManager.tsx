@@ -23,7 +23,8 @@ export const AssetsManager: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [liveMessage, setLiveMessage] = useState('');
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -45,6 +46,7 @@ export const AssetsManager: React.FC = () => {
     setIsUploading(true);
     try {
       await uploadAsset(file);
+      setLiveMessage(`Uploaded ${file.name}.`);
     } catch (err) {
       console.error('Upload error', err);
       setErrorMsg('Failed to process image.');
@@ -60,17 +62,18 @@ export const AssetsManager: React.FC = () => {
         src: asset.dataUrl,
         alt: asset.name
       });
+      setLiveMessage(`Applied ${asset.name} to the selected image.`);
     } else {
       // Add a new image element using this asset (single history entry)
       insertAssetAsImage(asset);
+      setLiveMessage(`Inserted ${asset.name} on the page.`);
     }
   };
 
-  const handleDelete = (e: React.MouseEvent, assetId: string) => {
-    e.stopPropagation();
-    if (confirm('Delete this asset? Elements referencing it will not be deleted, but image source will remain as embedded data.')) {
-      deleteAsset(assetId);
-    }
+  const handleConfirmDelete = (assetId: string, name: string) => {
+    deleteAsset(assetId);
+    setConfirmingDeleteId(null);
+    setLiveMessage(`Deleted ${name} from the media library.`);
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -91,9 +94,10 @@ export const AssetsManager: React.FC = () => {
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
           title="Upload new image"
+          aria-label="Upload a new image from your device"
         >
           {isUploading ? <Loader2 size={13} className="spin" /> : <Upload size={13} />}
-          <span>Upload</span>
+          <span>{isUploading ? 'Processing…' : 'Upload'}</span>
         </button>
         <input
           ref={fileInputRef}
@@ -101,11 +105,15 @@ export const AssetsManager: React.FC = () => {
           accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
           style={{ display: 'none' }}
           onChange={handleFileChange}
+          aria-hidden="true"
+          tabIndex={-1}
         />
       </div>
 
+      <span className="visually-hidden" aria-live="polite">{liveMessage}</span>
+
       {errorMsg && (
-        <div className="upload-error-banner">
+        <div className="upload-error-banner" role="alert">
           {errorMsg}
         </div>
       )}
@@ -125,6 +133,7 @@ export const AssetsManager: React.FC = () => {
             <button
               className="btn-upload-empty"
               onClick={() => fileInputRef.current?.click()}
+              aria-label="Upload an image"
             >
               Upload Image
             </button>
@@ -135,18 +144,55 @@ export const AssetsManager: React.FC = () => {
               <div
                 key={asset.id}
                 className="asset-item-card"
+                role="button"
+                tabIndex={0}
                 onClick={() => handleUseAsset(asset)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleUseAsset(asset);
+                  }
+                }}
                 title="Click to insert or apply"
+                aria-label={`Use ${asset.name} (${formatFileSize(asset.size)})`}
               >
                 <div className="asset-thumb-box">
-                  <img src={asset.dataUrl} alt={asset.name} loading="lazy" />
-                  <button
-                    className="delete-asset-btn"
-                    onClick={(e) => handleDelete(e, asset.id)}
-                    title="Delete asset"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                  <img src={asset.dataUrl} alt="" loading="lazy" />
+                  {confirmingDeleteId === asset.id ? (
+                    <div className="delete-asset-confirm" onClick={(e) => e.stopPropagation()}>
+                      <span>Delete this asset? Images already placed on the page keep working.</span>
+                      <div className="delete-asset-confirm-actions">
+                        <button
+                          className="asset-mini-btn"
+                          onClick={() => setConfirmingDeleteId(null)}
+                          aria-label={`Keep ${asset.name}`}
+                        >
+                          Keep
+                        </button>
+                        <button
+                          className="asset-mini-btn danger"
+                          onClick={() => handleConfirmDelete(asset.id, asset.name)}
+                          aria-label={`Confirm deleting ${asset.name}`}
+                          autoFocus
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      className="delete-asset-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmingDeleteId(asset.id);
+                      }}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      title="Delete asset"
+                      aria-label={`Delete ${asset.name}`}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
                 </div>
                 <div className="asset-info">
                   <span className="asset-name truncate">{asset.name}</span>
@@ -295,6 +341,11 @@ export const AssetsManager: React.FC = () => {
           transform: translateY(-2px);
         }
 
+        .asset-item-card:focus-visible {
+          outline: 2px solid var(--accent);
+          outline-offset: 2px;
+        }
+
         .asset-thumb-box {
           position: relative;
           aspect-ratio: 16 / 10;
@@ -320,18 +371,76 @@ export const AssetsManager: React.FC = () => {
           background: rgba(0, 0, 0, 0.75);
           color: #ef4444;
           border-radius: 3px;
-          display: none;
+          display: flex;
           align-items: center;
           justify-content: center;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.12s;
         }
 
-        .asset-item-card:hover .delete-asset-btn {
-          display: flex;
+        .asset-item-card:hover .delete-asset-btn,
+        .asset-item-card:focus-within .delete-asset-btn,
+        .delete-asset-btn:focus-visible {
+          opacity: 1;
+          pointer-events: auto;
         }
 
         .delete-asset-btn:hover {
           background: var(--danger);
           color: #fff;
+        }
+
+        .delete-asset-confirm {
+          position: absolute;
+          inset: 0;
+          background: rgba(2, 6, 23, 0.92);
+          color: #e2e8f0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 8px;
+          text-align: center;
+          font-size: 10.5px;
+          line-height: 1.35;
+        }
+
+        .delete-asset-confirm-actions {
+          display: flex;
+          gap: 6px;
+        }
+
+        .asset-mini-btn {
+          padding: 3px 10px;
+          border-radius: 4px;
+          font-size: 10.5px;
+          font-weight: 600;
+          background: var(--bg-surface);
+          color: var(--text-primary);
+          border: 1px solid var(--border-muted);
+        }
+
+        .asset-mini-btn.danger {
+          background: var(--danger);
+          color: #fff;
+          border-color: var(--danger);
+        }
+
+        @media (max-width: 900px), (pointer: coarse) {
+          .delete-asset-btn {
+            opacity: 1;
+            pointer-events: auto;
+            width: 34px;
+            height: 34px;
+          }
+
+          .asset-mini-btn,
+          .upload-trigger-btn,
+          .btn-upload-empty {
+            min-height: 40px;
+          }
         }
 
         .asset-info {

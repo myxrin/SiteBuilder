@@ -699,10 +699,15 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({
   // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName);
+      const target = e.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      const isFormField = tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
+      // Content-editable text (inline canvas editing, layer rename) must never
+      // trigger editor shortcuts such as Delete-element or undo.
+      const isEditable = isFormField || Boolean(target?.isContentEditable);
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        if (!isInput) {
+        if (!isEditable) {
           e.preventDefault();
           if (e.shiftKey) {
             redo();
@@ -711,7 +716,7 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({
           }
         }
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y')) {
-        if (!isInput) {
+        if (!isEditable) {
           e.preventDefault();
           redo();
         }
@@ -719,17 +724,17 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({
         e.preventDefault();
         saveProject();
       } else if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
-        if (!isInput && selectedElementId) {
+        if (!isEditable && selectedElementId) {
           e.preventDefault();
           duplicateElement(selectedElementId);
         }
       } else if (e.key === 'Escape') {
         if (isPreviewMode) {
           setIsPreviewMode(false);
-        } else {
+        } else if (!isEditable) {
           setSelectedElementId(null);
         }
-      } else if ((e.key === 'Delete' || e.key === 'Backspace') && !isInput) {
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && !isEditable) {
         if (selectedElementId && selectedElementId !== activePage?.rootElementId) {
           e.preventDefault();
           deleteElement(selectedElementId);
@@ -750,17 +755,32 @@ export const EditorProvider: React.FC<EditorProviderProps> = ({
       void saveController.flush();
     };
 
+    /**
+     * Last-chance guard: pending edits are already mirrored into localStorage,
+     * so we only interrupt the user when the last write actually failed and the
+     * work exists nowhere durable.
+     */
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      flushPending();
+      if (saveController.getStatus() === 'error') {
+        event.preventDefault();
+        event.returnValue = 'Your latest changes could not be saved. Leave anyway?';
+        return event.returnValue;
+      }
+      return undefined;
+    };
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') flushPending();
     };
 
     window.addEventListener('pagehide', flushPending);
-    window.addEventListener('beforeunload', flushPending);
+    window.addEventListener('beforeunload', handleBeforeUnload);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('pagehide', flushPending);
-      window.removeEventListener('beforeunload', flushPending);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [saveController]);

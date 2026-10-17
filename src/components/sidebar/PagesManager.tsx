@@ -7,7 +7,8 @@ import {
   Copy,
   Settings,
   Check,
-  X
+  X,
+  AlertTriangle
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import { Page } from '../../types/document';
@@ -27,67 +28,88 @@ export const PagesManager: React.FC = () => {
   const [isAdding, setIsAdding] = useState(false);
   const [newPageName, setNewPageName] = useState('');
   const [newPageSlug, setNewPageSlug] = useState('');
+  // Tracks whether the user typed their own slug. While false the slug keeps
+  // following the page name (previously it froze after the first keystroke).
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   // Form states for editing page
   const [editTitle, setEditTitle] = useState('');
   const [editSlug, setEditSlug] = useState('');
   const [editDesc, setEditDesc] = useState('');
 
+  const deriveSlug = (name: string) => sanitizeSlug(name.toLowerCase().replace(/\s+/g, '-'));
+
   const handleStartAdd = () => {
     setIsAdding(true);
     setNewPageName('');
     setNewPageSlug('');
+    setSlugManuallyEdited(false);
+    setAddError(null);
   };
 
   const handleConfirmAdd = () => {
-    if (!newPageName.trim()) return;
-    const slug = sanitizeSlug(newPageSlug || newPageName.toLowerCase().replace(/\s+/g, '-'));
-    
-    // Check duplicate slug
+    const name = newPageName.trim();
+    if (!name) {
+      setAddError('Enter a page name first.');
+      return;
+    }
+    const slug = newPageSlug.trim() ? sanitizeSlug(newPageSlug) : deriveSlug(name);
+
     if (project.pages.some(p => p.slug === slug)) {
-      alert(`The slug "${slug}" is already in use by another page.`);
+      setAddError(`The slug "${slug}" is already in use by another page.`);
       return;
     }
 
-    addPage(newPageName.trim(), slug);
+    addPage(name, slug);
     setIsAdding(false);
+    setAddError(null);
   };
 
   const handleStartEdit = (page: Page) => {
     setEditingPageId(page.id);
+    setEditError(null);
     setEditTitle(page.title || page.name);
     setEditSlug(page.slug);
     setEditDesc(page.description || '');
   };
 
   const handleSaveEdit = (pageId: string) => {
+    const title = editTitle.trim();
+    if (!title) {
+      setEditError('Page title cannot be empty.');
+      return;
+    }
     const slug = sanitizeSlug(editSlug);
     // Verify unique slug
     if (project.pages.some(p => p.id !== pageId && p.slug === slug)) {
-      alert(`The slug "${slug}" is already used by another page.`);
+      setEditError(`The slug "${slug}" is already used by another page.`);
       return;
     }
 
     updatePage(pageId, {
-      title: editTitle.trim(),
+      title,
       slug,
       description: editDesc.trim()
     });
     setEditingPageId(null);
+    setEditError(null);
   };
 
   const handleDelete = (page: Page) => {
     if (project.pages.length <= 1) {
-      alert('Cannot delete the only page in the project.');
+      // The delete button is hidden in this case; guard anyway.
+      setConfirmingDeleteId(null);
       return;
     }
-    if (confirm(`Are you sure you want to delete "${page.name}"? You can undo this change.`)) {
-      const result = deletePage(page.id);
-      if (!result.ok && result.message) {
-        alert(result.message);
-      }
+    const result = deletePage(page.id);
+    if (!result.ok && result.message) {
+      setAddError(result.message);
     }
+    setConfirmingDeleteId(null);
   };
 
   return (
@@ -116,11 +138,18 @@ export const PagesManager: React.FC = () => {
             className="input-field"
             placeholder="Page Name (e.g. Services)"
             value={newPageName}
+            aria-label="New page name"
             onChange={(e) => {
-              setNewPageName(e.target.value);
-              if (!newPageSlug) {
-                setNewPageSlug('/' + e.target.value.toLowerCase().replace(/\s+/g, '-'));
+              const value = e.target.value;
+              setNewPageName(value);
+              setAddError(null);
+              if (!slugManuallyEdited) {
+                setNewPageSlug(value.trim() ? deriveSlug(value) : '');
               }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleConfirmAdd();
+              if (e.key === 'Escape') setIsAdding(false);
             }}
             autoFocus
           />
@@ -129,8 +158,23 @@ export const PagesManager: React.FC = () => {
             className="input-field font-mono"
             placeholder="Route Slug (e.g. /services)"
             value={newPageSlug}
-            onChange={(e) => setNewPageSlug(e.target.value)}
+            aria-label="New page URL slug"
+            onChange={(e) => {
+              setNewPageSlug(e.target.value);
+              setSlugManuallyEdited(true);
+              setAddError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleConfirmAdd();
+              if (e.key === 'Escape') setIsAdding(false);
+            }}
           />
+          {addError && (
+            <div className="form-error" role="alert">
+              <AlertTriangle size={12} />
+              <span>{addError}</span>
+            </div>
+          )}
           <div className="form-buttons">
             <button className="btn-cancel" onClick={() => setIsAdding(false)}>Cancel</button>
             <button className="btn-save" onClick={handleConfirmAdd} disabled={!newPageName.trim()}>Create</button>
@@ -142,44 +186,82 @@ export const PagesManager: React.FC = () => {
         {project.pages.map(page => {
           const isActive = page.id === activePageId;
           const isEditing = page.id === editingPageId;
+          const isConfirmingDelete = page.id === confirmingDeleteId;
 
           return (
             <div key={page.id} className={`page-card ${isActive ? 'active' : ''}`}>
               {isEditing ? (
                 <div className="page-edit-form">
                   <div className="form-group">
-                    <label>Page Title</label>
+                    <label htmlFor={`page-title-${page.id}`}>Page Title</label>
                     <input
+                      id={`page-title-${page.id}`}
                       type="text"
                       className="input-field"
                       value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
+                      onChange={(e) => {
+                        setEditTitle(e.target.value);
+                        setEditError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveEdit(page.id);
+                        if (e.key === 'Escape') setEditingPageId(null);
+                      }}
                     />
                   </div>
                   <div className="form-group">
-                    <label>URL Slug</label>
+                    <label htmlFor={`page-slug-${page.id}`}>URL Slug</label>
                     <input
+                      id={`page-slug-${page.id}`}
                       type="text"
                       className="input-field font-mono"
                       value={editSlug}
-                      onChange={(e) => setEditSlug(e.target.value)}
+                      onChange={(e) => {
+                        setEditSlug(e.target.value);
+                        setEditError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveEdit(page.id);
+                        if (e.key === 'Escape') setEditingPageId(null);
+                      }}
                     />
                   </div>
                   <div className="form-group">
-                    <label>SEO Description</label>
+                    <label htmlFor={`page-desc-${page.id}`}>SEO Description</label>
                     <textarea
+                      id={`page-desc-${page.id}`}
                       className="textarea-field"
                       rows={2}
                       value={editDesc}
                       onChange={(e) => setEditDesc(e.target.value)}
                     />
                   </div>
+                  {editError && (
+                    <div className="form-error" role="alert">
+                      <AlertTriangle size={12} />
+                      <span>{editError}</span>
+                    </div>
+                  )}
                   <div className="form-buttons">
                     <button className="btn-cancel" onClick={() => setEditingPageId(null)}>
                       <X size={13} /> Cancel
                     </button>
                     <button className="btn-save" onClick={() => handleSaveEdit(page.id)}>
                       <Check size={13} /> Save
+                    </button>
+                  </div>
+                </div>
+              ) : isConfirmingDelete ? (
+                <div className="inline-confirm" role="alertdialog" aria-label={`Confirm deleting ${page.name}`}>
+                  <span className="inline-confirm-text">
+                    Delete “{page.name}”? It can be restored with Ctrl+Z.
+                  </span>
+                  <div className="form-buttons">
+                    <button className="btn-cancel" onClick={() => setConfirmingDeleteId(null)}>
+                      Keep
+                    </button>
+                    <button className="btn-danger" onClick={() => handleDelete(page)} autoFocus>
+                      Delete
                     </button>
                   </div>
                 </div>
@@ -206,6 +288,7 @@ export const PagesManager: React.FC = () => {
                           updatePage(page.id, { isHome: true });
                         }}
                         title="Set as Homepage"
+                        aria-label={`Set ${page.name} as homepage`}
                       >
                         <Home size={13} />
                       </button>
@@ -217,6 +300,7 @@ export const PagesManager: React.FC = () => {
                         handleStartEdit(page);
                       }}
                       title="Page Settings & SEO"
+                      aria-label={`Edit settings for ${page.name}`}
                     >
                       <Settings size={13} />
                     </button>
@@ -227,6 +311,7 @@ export const PagesManager: React.FC = () => {
                         duplicatePage(page.id);
                       }}
                       title="Duplicate Page"
+                      aria-label={`Duplicate ${page.name}`}
                     >
                       <Copy size={13} />
                     </button>
@@ -235,9 +320,10 @@ export const PagesManager: React.FC = () => {
                         className="action-icon-btn delete"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(page);
+                          setConfirmingDeleteId(page.id);
                         }}
                         title="Delete Page"
+                        aria-label={`Delete ${page.name}`}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -360,6 +446,53 @@ export const PagesManager: React.FC = () => {
           color: var(--text-on-accent);
         }
 
+        .btn-save:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .btn-danger {
+          padding: 4px 12px;
+          border-radius: var(--radius-sm);
+          font-size: 11px;
+          font-weight: 600;
+          background: var(--danger);
+          color: #fff;
+        }
+
+        .form-error {
+          display: flex;
+          align-items: flex-start;
+          gap: 6px;
+          padding: 6px 8px;
+          border-radius: var(--radius-sm);
+          background: rgba(239, 68, 68, 0.12);
+          border: 1px solid rgba(239, 68, 68, 0.35);
+          color: #fca5a5;
+          font-size: 11px;
+          line-height: 1.35;
+        }
+
+        .form-error svg {
+          flex-shrink: 0;
+          margin-top: 1px;
+        }
+
+        .inline-confirm {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding: 10px;
+          border-left: 3px solid var(--danger);
+          background: rgba(239, 68, 68, 0.06);
+        }
+
+        .inline-confirm-text {
+          font-size: 11.5px;
+          color: var(--text-primary);
+          line-height: 1.4;
+        }
+
         .pages-list {
           flex: 1;
           overflow-y: auto;
@@ -428,11 +561,15 @@ export const PagesManager: React.FC = () => {
         .page-slug {
           font-size: 11px;
           color: var(--text-muted);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .page-row-actions {
           display: flex;
           gap: 4px;
+          flex-shrink: 0;
         }
 
         .action-icon-btn {
@@ -452,6 +589,19 @@ export const PagesManager: React.FC = () => {
 
         .action-icon-btn.delete:hover {
           color: var(--danger);
+        }
+
+        @media (max-width: 900px), (pointer: coarse) {
+          .action-icon-btn {
+            width: 40px;
+            height: 40px;
+          }
+
+          .add-page-btn, .btn-cancel, .btn-save, .btn-danger {
+            min-height: 40px;
+            padding-left: 12px;
+            padding-right: 12px;
+          }
         }
 
         .page-edit-form {

@@ -87,6 +87,7 @@ export const InspectorContainer: React.FC = () => {
           .inspector-container {
             width: var(--inspector-width);
             height: calc(100vh - var(--header-height));
+            height: calc(100dvh - var(--header-height));
             background: var(--bg-base);
             border-left: 1px solid var(--border-subtle);
             overflow-y: auto;
@@ -1443,6 +1444,7 @@ export const InspectorContainer: React.FC = () => {
         .inspector-container {
           width: var(--inspector-width);
           height: calc(100vh - var(--header-height));
+          height: calc(100dvh - var(--header-height));
           background: var(--bg-base);
           border-left: 1px solid var(--border-subtle);
           overflow-y: auto;
@@ -1832,6 +1834,34 @@ export const InspectorContainer: React.FC = () => {
           padding: 10px 12px 20px 12px;
           font-size: 10.5px;
           color: var(--text-muted);
+        }
+
+        @media (max-width: 900px), (pointer: coarse) {
+          .section-header-btn {
+            min-height: 42px;
+            padding: 10px 14px;
+          }
+
+          .top-action-btn {
+            width: 36px;
+            height: 36px;
+          }
+
+          .input-control,
+          .select-control,
+          .color-hex-input {
+            min-height: 38px;
+          }
+
+          .align-preset-btn,
+          .btn-settings-link {
+            min-height: 38px;
+            padding: 8px 12px;
+          }
+
+          .inspector-container {
+            padding-bottom: 90px;
+          }
         }
       `}</style>
     </aside>

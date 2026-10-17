@@ -3,6 +3,8 @@ import JSZip from 'jszip';
 import {
   cssRulesToString,
   generatePageHTML,
+  generateProjectCSS,
+  generateClientJS,
   exportProjectToZip,
   collectExportWarnings
 } from '../src/services/exporter';
@@ -171,5 +173,63 @@ describe('Exporter Hardening', () => {
     const indexHtml = await zip.file('index.html')!.async('string');
     expect(indexHtml).not.toContain('data:image/png;base64');
     expect(indexHtml).toContain('src="assets/img_1.png"');
+  });
+
+  it('exports a neutral placeholder instead of a broken image when no src is set', () => {
+    const project = createStarterProject('Empty Image');
+    const page = project.pages[0];
+
+    appendElement(
+      project,
+      createElement('image', page.rootElementId, {
+        props: { src: '', alt: 'Team photo' }
+      })
+    );
+
+    const html = generatePageHTML(page, project, new Map());
+
+    expect(html).not.toContain('src="#"');
+    expect(html).toContain('sb-image-placeholder');
+    expect(html).toContain('Team photo');
+  });
+
+  it('falls back to the placeholder when an image src uses an unsafe protocol', () => {
+    const project = createStarterProject('Unsafe Image');
+    const page = project.pages[0];
+
+    appendElement(
+      project,
+      createElement('image', page.rootElementId, {
+        props: { src: 'javascript:alert(1)', alt: 'Bad' }
+      })
+    );
+
+    const html = generatePageHTML(page, project, new Map());
+
+    expect(html).not.toMatch(/javascript:/i);
+    expect(html).toContain('sb-image-placeholder');
+  });
+
+  it('ships the image placeholder styling in the exported stylesheet', () => {
+    const project = createStarterProject('Placeholder CSS');
+    expect(generateProjectCSS(project)).toContain('.sb-image-placeholder');
+  });
+
+  it('exports an auth runtime with friendly errors and a popup-blocked redirect fallback', () => {
+    const project = createStarterProject('Auth Runtime');
+
+    appendElement(
+      project,
+      createElement('auth', project.pages[0].rootElementId, {
+        props: { authTitle: 'Welcome' }
+      })
+    );
+
+    const js = generateClientJS(project);
+
+    expect(js).toContain('friendlyAuthError');
+    expect(js).toContain('auth/invalid-credential');
+    expect(js).toContain('signInWithRedirect');
+    expect(js).toContain('auth/popup-blocked');
   });
 });

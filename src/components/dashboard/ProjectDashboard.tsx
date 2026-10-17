@@ -143,6 +143,18 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
     // Allow re-selecting the same file later.
     e.target.value = '';
     if (!file) return;
+    if (isImporting) return;
+
+    // Guard against loading huge files into memory (project JSON embeds assets
+    // as base64, so legitimate files are well below this).
+    const MAX_IMPORT_BYTES = 100 * 1024 * 1024;
+    if (file.size > MAX_IMPORT_BYTES) {
+      setImportFailure({
+        message: 'This project file is too large to import.',
+        details: [`The file is ${(file.size / (1024 * 1024)).toFixed(1)} MB — the limit is 100 MB.`]
+      });
+      return;
+    }
 
     setIsImporting(true);
     setImportFailure(null);
@@ -214,6 +226,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
             onClick={() => importInputRef.current?.click()}
             disabled={isImporting}
             title={`Import a ${PROJECT_FILE_EXTENSION} backup or legacy project JSON`}
+            aria-label="Import a project file"
           >
             {isImporting ? <Loader2 size={15} className="spin" /> : <Upload size={15} />}
             <span>Import Project</span>
@@ -226,6 +239,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
               setTemplateType('starter');
               setIsCreateModalOpen(true);
             }}
+            aria-label="Create a new project"
           >
             <Plus size={15} />
             <span>New Project</span>
@@ -272,7 +286,16 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
               <div
                 key={p.id}
                 className="project-card"
+                role="button"
+                tabIndex={0}
+                aria-label={`Open project ${p.name}, ${p.pagesCount} ${p.pagesCount === 1 ? 'page' : 'pages'}, updated ${formatDate(p.updatedAt)}`}
                 onClick={() => onOpenProject(p.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onOpenProject(p.id);
+                  }
+                }}
               >
                 {/* Visual Thumbnail */}
                 <div className="project-thumbnail">
@@ -320,6 +343,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
                         className="card-act-btn"
                         onClick={(e) => handleStartRename(e, p)}
                         title="Rename"
+                        aria-label={`Rename ${p.name}`}
                       >
                         <Edit2 size={13} />
                       </button>
@@ -327,6 +351,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
                         className="card-act-btn"
                         onClick={(e) => handleDuplicate(e, p.id)}
                         title="Duplicate"
+                        aria-label={`Duplicate ${p.name}`}
                       >
                         <Copy size={13} />
                       </button>
@@ -334,6 +359,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
                         className="card-act-btn delete"
                         onClick={(e) => handleStartDelete(e, p)}
                         title="Delete"
+                        aria-label={`Delete ${p.name}`}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -368,10 +394,19 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
 
           <div className="modal-form-group">
             <label>Template</label>
-            <div className="template-options">
+            <div className="template-options" role="radiogroup" aria-label="Starting template">
               <div
                 className={`template-option ${templateType === 'starter' ? 'active' : ''}`}
+                role="radio"
+                aria-checked={templateType === 'starter'}
+                tabIndex={0}
                 onClick={() => setTemplateType('starter')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setTemplateType('starter');
+                  }
+                }}
               >
                 <div className="tmpl-icon"><Sparkles size={18} /></div>
                 <div className="tmpl-info">
@@ -381,7 +416,16 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
               </div>
               <div
                 className={`template-option ${templateType === 'blank' ? 'active' : ''}`}
+                role="radio"
+                aria-checked={templateType === 'blank'}
+                tabIndex={0}
                 onClick={() => setTemplateType('blank')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setTemplateType('blank');
+                  }
+                }}
               >
                 <div className="tmpl-icon"><Layout size={18} /></div>
                 <div className="tmpl-info">
@@ -519,10 +563,13 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
 
       <style>{`
         .dashboard-container {
-          min-height: 100vh;
+          height: 100%;
           background: var(--bg-workspace);
           display: flex;
           flex-direction: column;
+          overflow-y: auto;
+          overflow-x: hidden;
+          overscroll-behavior: contain;
         }
 
         .dashboard-header {
@@ -533,6 +580,13 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
           align-items: center;
           justify-content: space-between;
           padding: 0 28px;
+          padding-left: calc(28px + env(safe-area-inset-left));
+          padding-right: calc(28px + env(safe-area-inset-right));
+          position: sticky;
+          top: 0;
+          z-index: 20;
+          flex-shrink: 0;
+          gap: 10px;
         }
 
         .dashboard-brand {
@@ -642,8 +696,9 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
           max-width: 1100px;
           width: 100%;
           margin: 0 auto;
-          padding: 36px 24px 60px 24px;
+          padding: 36px 24px calc(60px + env(safe-area-inset-bottom)) 24px;
           flex: 1;
+          box-sizing: border-box;
         }
 
         .dashboard-title-row {
@@ -717,7 +772,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
 
         .projects-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
           gap: 20px;
         }
 
@@ -730,6 +785,12 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
           transition: all 0.18s ease;
           display: flex;
           flex-direction: column;
+          min-width: 0;
+        }
+
+        .project-card:focus-visible {
+          outline: 2px solid var(--accent);
+          outline-offset: 2px;
         }
 
         .project-card:hover {
@@ -1027,6 +1088,88 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ onOpenProjec
           border-radius: var(--radius-sm);
           font-size: 12.5px;
           font-weight: 600;
+        }
+
+        @media (max-width: 640px) {
+          .dashboard-header {
+            padding-left: calc(14px + env(safe-area-inset-left));
+            padding-right: calc(14px + env(safe-area-inset-right));
+          }
+
+          .brand-badge {
+            display: none;
+          }
+
+          .dashboard-header-actions {
+            gap: 6px;
+          }
+
+          .import-project-btn span,
+          .create-project-btn span {
+            display: none;
+          }
+
+          .import-project-btn,
+          .create-project-btn {
+            padding: 10px;
+          }
+
+          .dashboard-content {
+            padding: 24px 14px calc(48px + env(safe-area-inset-bottom)) 14px;
+          }
+
+          .dashboard-title-row {
+            margin-bottom: 18px;
+          }
+
+          .dash-heading {
+            font-size: 20px;
+          }
+
+          .dashboard-empty-state {
+            padding: 48px 18px;
+          }
+
+          .project-thumbnail {
+            height: 124px;
+          }
+
+          .modal-box {
+            padding: 18px;
+          }
+        }
+
+        @media (pointer: coarse) {
+          .card-act-btn {
+            width: 40px;
+            height: 40px;
+          }
+
+          .card-actions {
+            gap: 8px;
+          }
+
+          .template-option {
+            padding: 14px;
+          }
+
+          .btn-modal-cancel,
+          .btn-modal-submit,
+          .btn-modal-delete {
+            min-height: 44px;
+            padding-left: 18px;
+            padding-right: 18px;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .project-card:hover {
+            transform: none;
+          }
+
+          .spin {
+            animation: none;
+          }
         }
       `}</style>
     </div>

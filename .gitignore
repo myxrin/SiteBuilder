@@ -8,6 +8,11 @@ dist
 dist-ssr
 sample-export/unzipped
 
+# E2E download artifacts (written by the WebDriver scripts)
+e2e/downloads
+e2e/downloads-mobile
+e2e/downloads-settings
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

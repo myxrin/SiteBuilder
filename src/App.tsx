@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Project } from './types/document';
 import { StorageService } from './services/storage';
 import { readPendingBuffer } from './services/pendingBuffer';
 import { ProjectDashboard } from './components/dashboard/ProjectDashboard';
-import { EditorWorkspace } from './components/editor/EditorWorkspace';
 import { EditorProvider } from './context/EditorContext';
 import { createStarterProject } from './utils/defaults';
 import { Loader2 } from 'lucide-react';
+
+// The editor (toolbar, sidebar, canvas, inspector, preview) is split into its
+// own chunk so the dashboard loads instantly on slow connections.
+const EditorWorkspace = lazy(() =>
+  import('./components/editor/EditorWorkspace').then(module => ({ default: module.EditorWorkspace }))
+);
 
 export const App: React.FC = () => {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -87,36 +92,7 @@ export const App: React.FC = () => {
   };
 
   if (isLoading) {
-    return (
-      <div className="app-loading-screen">
-        <Loader2 size={36} className="spin text-accent" />
-        <span>Loading SiteBuilder Project...</span>
-        <style>{`
-          .app-loading-screen {
-            width: 100vw;
-            height: 100vh;
-            background: var(--bg-workspace);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            color: var(--text-muted);
-            font-size: 13px;
-          }
-          .text-accent {
-            color: var(--accent);
-          }
-          .spin {
-            animation: spin 1s linear infinite;
-          }
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
-    );
+    return <LoadingScreen label="Loading SiteBuilder Project..." />;
   }
 
   if (activeProjectId && currentProject) {
@@ -127,12 +103,39 @@ export const App: React.FC = () => {
         recoveredFromBuffer={recoveredFromBuffer}
         onClose={handleBackToDashboard}
       >
-        <EditorWorkspace onBackToDashboard={handleBackToDashboard} />
+        <Suspense fallback={<LoadingScreen label="Opening editor..." />}>
+          <EditorWorkspace onBackToDashboard={handleBackToDashboard} />
+        </Suspense>
       </EditorProvider>
     );
   }
 
   return <ProjectDashboard onOpenProject={handleOpenProject} />;
 };
+
+const LoadingScreen: React.FC<{ label: string }> = ({ label }) => (
+  <div className="app-loading-screen">
+    <Loader2 size={36} className="spin text-accent" />
+    <span>{label}</span>
+    <style>{`
+      .app-loading-screen {
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        background: var(--bg-workspace);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        color: var(--text-muted);
+        font-size: 13px;
+      }
+      .text-accent {
+        color: var(--accent);
+      }
+    `}</style>
+  </div>
+);
 
 export default App;

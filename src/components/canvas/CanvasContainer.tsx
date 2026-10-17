@@ -87,6 +87,7 @@ export const CanvasContainer: React.FC = () => {
         .canvas-workspace-scroll {
           flex: 1;
           height: calc(100vh - var(--header-height));
+          height: calc(100dvh - var(--header-height));
           background: var(--bg-workspace);
           overflow: auto;
           position: relative;
@@ -155,6 +156,32 @@ export const CanvasContainer: React.FC = () => {
           padding: 40px;
           text-align: center;
           color: var(--danger);
+        }
+
+        @media (max-width: 640px) {
+          .canvas-workspace-scroll {
+            padding: 14px 6px 90px 6px;
+          }
+
+          .viewport-info-bar {
+            gap: 6px;
+            margin-bottom: 8px;
+          }
+
+          .viewport-frame {
+            min-height: 500px;
+          }
+
+          .viewport-frame.mobile {
+            max-width: calc(100% - 4px) !important;
+            border-width: 3px;
+            border-radius: 12px;
+          }
+
+          .viewport-frame.tablet {
+            border-width: 4px;
+            border-radius: 10px;
+          }
         }
       `}</style>
     </main>

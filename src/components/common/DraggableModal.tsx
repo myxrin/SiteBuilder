@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useId } from 'react';
 import { GripHorizontal } from 'lucide-react';
 
 interface DraggableModalProps {
@@ -19,6 +19,19 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const dragRef = useRef<{ startX: number; startY: number; posX: number; posY: number } | null>(null);
   const modalBoxRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+
+  // Escape always closes the modal, matching the backdrop-click behaviour.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const handleStartDrag = (e: React.MouseEvent | React.TouchEvent) => {
     // Only drag from the drag header
@@ -68,6 +81,9 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
       <div
         ref={modalBoxRef}
         className={`draggable-modal-box ${className}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         style={{
           maxWidth,
           transform: position ? `translate(${position.x}px, ${position.y}px)` : undefined
@@ -83,7 +99,7 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
         >
           <div className="drag-handle-grip">
             <GripHorizontal size={16} />
-            <span className="modal-header-title">{title}</span>
+            <span className="modal-header-title" id={titleId}>{title}</span>
           </div>
           <button
             type="button"
@@ -180,6 +196,17 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
           display: flex;
           flex-direction: column;
           gap: 16px;
+        }
+
+        @media (pointer: coarse) {
+          .modal-close-icon-btn {
+            width: 44px;
+            height: 44px;
+            font-size: 14px;
+          }
+          .modal-drag-header {
+            padding: 6px 10px 6px 14px;
+          }
         }
       `}</style>
     </div>

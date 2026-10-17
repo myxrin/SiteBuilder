@@ -88,6 +88,7 @@ export const SidebarContainer: React.FC = () => {
         .sidebar-container {
           display: flex;
           height: calc(100vh - var(--header-height));
+          height: calc(100dvh - var(--header-height));
           background: var(--bg-base);
           border-right: 1px solid var(--border-subtle);
           user-select: none;

@@ -104,16 +104,17 @@ try {
   await waitFor(async () => (await count('.page-card')) === initialPages + 2, 'page duplicated');
   check('Duplicate page works', Boolean(duplicated));
 
-  // Delete the duplicate (dialog auto-accepted below).
+  // Delete the duplicate (inline two-step confirmation replaced window.confirm).
   const deleted = await exec(
-    `window.confirm = () => true;
-     const cards = [...document.querySelectorAll('.page-card')];
+    `const cards = [...document.querySelectorAll('.page-card')];
      const card = cards.find(c => c.textContent.includes('Services') && c.textContent.includes('Copy'));
      const btn = card?.querySelector('button[title="Delete Page"]');
      if (!btn) return false;
      btn.click();
      return true;`
   );
+  await waitFor(() => count('.inline-confirm'), 'inline delete confirmation');
+  await exec(`document.querySelector('.inline-confirm .btn-danger').click();`);
   await waitFor(async () => (await count('.page-card')) === initialPages + 1, 'page deleted');
   check('Delete page works and removes the card', Boolean(deleted));
 

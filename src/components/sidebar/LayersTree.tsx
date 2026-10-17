@@ -74,33 +74,58 @@ const LayerNode: React.FC<LayerItemProps> = ({
   const [isExpanded, setIsExpanded] = useState(true);
   const isSelected = selectedId === element.id;
   const hasChildren = element.children && element.children.length > 0;
+  const displayName = element.name || element.type;
 
   return (
     <div className="layer-node-wrapper">
       <div
         className={`layer-item ${isSelected ? 'selected' : ''}`}
         style={{ paddingLeft: `${depth * 14 + 8}px` }}
+        role="treeitem"
+        tabIndex={0}
+        aria-selected={isSelected}
+        aria-expanded={hasChildren ? isExpanded : undefined}
+        aria-label={displayName}
         onClick={(e) => {
           e.stopPropagation();
           onSelect(element.id);
         }}
-      >
-        <span
-          className="layer-expand-toggle"
-          onClick={(e) => {
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
             e.stopPropagation();
-            if (hasChildren) setIsExpanded(!isExpanded);
-          }}
-        >
-          {hasChildren ? (
-            isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />
-          ) : (
+            onSelect(element.id);
+          } else if (e.key === 'ArrowRight' && hasChildren && !isExpanded) {
+            e.preventDefault();
+            setIsExpanded(true);
+          } else if (e.key === 'ArrowLeft' && hasChildren && isExpanded) {
+            e.preventDefault();
+            setIsExpanded(false);
+          }
+        }}
+      >
+        {hasChildren ? (
+          <button
+            type="button"
+            className="layer-expand-toggle"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsExpanded(!isExpanded);
+            }}
+            aria-expanded={isExpanded}
+            aria-label={isExpanded ? `Collapse ${displayName}` : `Expand ${displayName}`}
+            tabIndex={-1}
+          >
+            {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </button>
+        ) : (
+          <span className="layer-expand-toggle" aria-hidden="true">
             <span style={{ width: 12 }} />
-          )}
-        </span>
+          </span>
+        )}
 
         <span className="layer-type-icon">{getElementIcon(element.type)}</span>
-        <span className="layer-name truncate">{element.name || element.type}</span>
+        <span className="layer-name truncate">{displayName}</span>
 
         {!isRoot && (
           <div className="layer-actions">
@@ -111,7 +136,7 @@ const LayerNode: React.FC<LayerItemProps> = ({
                 onMoveUp(element);
               }}
               title="Move up"
-              aria-label="Move up"
+              aria-label={`Move ${displayName} up`}
             >
               <ArrowUp size={11} />
             </button>
@@ -122,7 +147,7 @@ const LayerNode: React.FC<LayerItemProps> = ({
                 onMoveDown(element);
               }}
               title="Move down"
-              aria-label="Move down"
+              aria-label={`Move ${displayName} down`}
             >
               <ArrowDown size={11} />
             </button>
@@ -133,7 +158,7 @@ const LayerNode: React.FC<LayerItemProps> = ({
                 onDuplicate(element.id);
               }}
               title="Duplicate"
-              aria-label="Duplicate"
+              aria-label={`Duplicate ${displayName}`}
             >
               <Copy size={11} />
             </button>
@@ -144,7 +169,7 @@ const LayerNode: React.FC<LayerItemProps> = ({
                 onDelete(element.id);
               }}
               title="Delete"
-              aria-label="Delete"
+              aria-label={`Delete ${displayName}`}
             >
               <Trash2 size={11} />
             </button>
@@ -218,7 +243,7 @@ export const LayersTree: React.FC = () => {
         <span className="layers-subtitle">Page structure & hierarchy</span>
       </div>
 
-      <div className="layers-content">
+      <div className="layers-content" role="tree" aria-label="Page layers">
         {rootEl ? (
           <LayerNode
             element={rootEl}
@@ -288,6 +313,11 @@ export const LayersTree: React.FC = () => {
           background: var(--bg-surface-hover);
         }
 
+        .layer-item:focus-visible {
+          outline: 2px solid var(--accent);
+          outline-offset: -2px;
+        }
+
         .layer-item.selected {
           background: var(--accent-subtle);
           color: var(--accent);
@@ -301,6 +331,11 @@ export const LayersTree: React.FC = () => {
           width: 14px;
           height: 14px;
           color: var(--text-muted);
+          flex-shrink: 0;
+        }
+
+        button.layer-expand-toggle:hover {
+          color: var(--text-primary);
         }
 
         .layer-type-icon {
@@ -315,19 +350,23 @@ export const LayersTree: React.FC = () => {
 
         .layer-name {
           flex: 1;
+          min-width: 0;
           font-size: 12px;
           color: inherit;
         }
 
         .layer-actions {
-          display: none;
+          display: flex;
           align-items: center;
           gap: 2px;
+          visibility: hidden;
+          flex-shrink: 0;
         }
 
         .layer-item:hover .layer-actions,
+        .layer-item:focus-within .layer-actions,
         .layer-item.selected .layer-actions {
-          display: flex;
+          visibility: visible;
         }
 
         .layer-action-btn {
@@ -348,6 +387,27 @@ export const LayersTree: React.FC = () => {
 
         .layer-action-btn.delete-btn:hover {
           color: var(--danger);
+        }
+
+        @media (max-width: 900px), (pointer: coarse) {
+          .layer-item {
+            height: auto;
+            min-height: 40px;
+          }
+
+          .layer-actions {
+            visibility: visible;
+          }
+
+          .layer-action-btn {
+            width: 36px;
+            height: 36px;
+          }
+
+          button.layer-expand-toggle {
+            width: 28px;
+            height: 36px;
+          }
         }
 
         .empty-layers {

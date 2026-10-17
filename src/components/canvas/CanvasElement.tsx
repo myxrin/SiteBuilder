@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   SiteElement,
   Viewport,
   ElementStyles
 } from '../../types/document';
 import { useEditor } from '../../context/EditorContext';
+import { mergeStylesForViewport } from '../../utils/projectEdits';
 import {
   Copy,
   Trash2,
@@ -15,7 +16,9 @@ import {
   Mail,
   KeyRound,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  ImageOff,
+  Pencil
 } from 'lucide-react';
 
 interface CanvasElementProps {
@@ -49,6 +52,13 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
   // Inline text editing state for headings and paragraphs
   const [isEditingInline, setIsEditingInline] = useState(false);
   const textRef = useRef<any>(null);
+
+  // Broken / missing image reporting (canvas only — the export never ships a
+  // placeholder that could overwrite content).
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => {
+    setImageFailed(false);
+  }, [element.props.src]);
 
   // Drag-to-reposition state
   const dragStartRef = useRef<{ startX: number; startY: number; origLeft: number; origTop: number } | null>(null);
@@ -157,9 +167,13 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
     e.stopPropagation();
     e.preventDefault();
 
-    const curPos = element.styles.position || 'static';
-    const curLeft = parseInt(element.styles.left || '0', 10) || 0;
-    const curTop = parseInt(element.styles.top || '0', 10) || 0;
+    // Read the *effective* values for the viewport being edited, so dragging in
+    // tablet/mobile mode continues from the overridden position instead of the
+    // desktop one.
+    const effective = mergeStylesForViewport(element, viewport);
+    const curPos = effective.position || 'static';
+    const curLeft = Number.parseFloat(effective.left || '0') || 0;
+    const curTop = Number.parseFloat(effective.top || '0') || 0;
 
     dragStartRef.current = {
       startX: e.clientX,
@@ -193,11 +207,83 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
     window.addEventListener('mouseup', handleMouseUp);
   };
 
+  /** Touch equivalent of dragging: allows repositioning elements on touchscreens. */
+  const handleDragHandleTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+
+    const effective = mergeStylesForViewport(element, viewport);
+    const curPos = effective.position || 'static';
+    const curLeft = Number.parseFloat(effective.left || '0') || 0;
+    const curTop = Number.parseFloat(effective.top || '0') || 0;
+
+    dragStartRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      origLeft: curLeft,
+      origTop: curTop
+    };
+
+    const handleTouchMove = (moveEv: TouchEvent) => {
+      if (!dragStartRef.current || moveEv.touches.length !== 1) return;
+      if (moveEv.cancelable) moveEv.preventDefault();
+      const t = moveEv.touches[0];
+      const dx = t.clientX - dragStartRef.current.startX;
+      const dy = t.clientY - dragStartRef.current.startY;
+
+      const newLeft = `${dragStartRef.current.origLeft + dx}px`;
+      const newTop = `${dragStartRef.current.origTop + dy}px`;
+
+      updateElementStyles(element.id, {
+        position: curPos === 'static' ? 'relative' : curPos,
+        left: newLeft,
+        top: newTop
+      }, viewport, true);
+    };
+
+    const handleTouchEnd = () => {
+      dragStartRef.current = null;
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
+    };
+
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('touchcancel', handleTouchEnd);
+  };
+
+  /** Keyboard equivalent of dragging: arrow keys nudge the element (Shift = 10px). */
+  const handleNudgeKeyDown = (e: React.KeyboardEvent) => {
+    const deltas: Record<string, [number, number]> = {
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0],
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1]
+    };
+    const delta = deltas[e.key];
+    if (!delta) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const step = e.shiftKey ? 10 : 1;
+    const effective = mergeStylesForViewport(element, viewport);
+    const basePosition = effective.position && effective.position !== 'static' ? effective.position : 'relative';
+    const left = (Number.parseFloat(effective.left || '0') || 0) + delta[0] * step;
+    const top = (Number.parseFloat(effective.top || '0') || 0) + delta[1] * step;
+
+    updateElementStyles(element.id, {
+      position: basePosition,
+      left: `${left}px`,
+      top: `${top}px`
+    }, viewport, true);
+  };
+
   // Render children
   const childrenElements = (element.children || [])
     .map(childId => elementsMap[childId])
     .filter(Boolean);
-
   const isContainerType = ['section', 'container', 'grid', 'card'].includes(element.type);
   const isEmptyContainer = isContainerType && childrenElements.length === 0;
 
@@ -255,9 +341,25 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
         );
 
       case 'image':
+        if (!element.props.src || imageFailed) {
+          return (
+            <div
+              className={`image-placeholder ${imageFailed ? 'error' : ''}`}
+              role="img"
+              aria-label={imageFailed ? 'Image failed to load' : element.props.alt || 'No image selected'}
+            >
+              <ImageOff size={18} />
+              <span>
+                {imageFailed
+                  ? 'This image could not be loaded — check the URL or re-upload it.'
+                  : 'No image selected — pick one in Media or paste a URL.'}
+              </span>
+            </div>
+          );
+        }
         return (
           <img
-            src={element.props.src || 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80'}
+            src={element.props.src}
             alt={element.props.alt || 'Image'}
             style={{
               width: '100%',
@@ -267,6 +369,7 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
               borderRadius: 'inherit'
             }}
             loading="lazy"
+            onError={() => setImageFailed(true)}
           />
         );
 
@@ -396,12 +499,28 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
           <button
             className="badge-btn drag-move-handle"
             onMouseDown={handleDragHandleMouseDown}
-            title="Drag to reposition anywhere"
+            onTouchStart={handleDragHandleTouchStart}
+            onKeyDown={handleNudgeKeyDown}
+            title={`Drag to reposition, or use the arrow keys to nudge (Shift = 10px). Currently: ${element.name}`}
+            aria-label={`Reposition ${element.name}. Touch or drag to reposition, arrow keys to nudge.`}
           >
             <Move size={11} />
           </button>
           <span className="badge-name">{element.name || element.type}</span>
           <div className="badge-actions">
+            {['heading', 'paragraph', 'button'].includes(element.type) && (
+              <button
+                className="badge-btn edit-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditingInline(true);
+                }}
+                title="Edit text inline"
+                aria-label={`Edit text of ${element.name}`}
+              >
+                <Pencil size={11} />
+              </button>
+            )}
             {element.parentId && (
               <button
                 className="badge-btn"
@@ -410,6 +529,7 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
                   setSelectedElementId(element.parentId);
                 }}
                 title="Select parent element"
+                aria-label="Select parent element"
               >
                 <CornerLeftUp size={11} />
               </button>
@@ -420,7 +540,8 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
                 e.stopPropagation();
                 duplicateElement(element.id);
               }}
-              title="Duplicate"
+              title="Duplicate (Ctrl+D)"
+              aria-label={`Duplicate ${element.name}`}
             >
               <Copy size={11} />
             </button>
@@ -430,7 +551,8 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
                 e.stopPropagation();
                 deleteElement(element.id);
               }}
-              title="Delete"
+              title="Delete (Del) — undo with Ctrl+Z"
+              aria-label={`Delete ${element.name}`}
             >
               <Trash2 size={11} />
             </button>
@@ -455,14 +577,25 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
       {isEmptyContainer && !isRoot && (
         <div
           className="empty-container-dropzone"
+          role="button"
+          tabIndex={0}
+          aria-label={`Add a heading inside empty ${element.name}`}
           onClick={(e) => {
             e.stopPropagation();
             setSelectedElementId(element.id);
             addElement('heading', element.id);
           }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              setSelectedElementId(element.id);
+              addElement('heading', element.id);
+            }
+          }}
         >
           <Plus size={14} />
-          <span>Empty {element.name} — Click to add content</span>
+          <span>Empty {element.name} — click to add a heading here</span>
         </div>
       )}
 
@@ -564,6 +697,38 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
           border-color: var(--accent);
           color: var(--accent);
           background: var(--accent-subtle);
+        }
+
+        .empty-container-dropzone:focus-visible {
+          outline: 2px solid var(--accent);
+          outline-offset: 2px;
+        }
+
+        .image-placeholder {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          min-height: 96px;
+          height: 100%;
+          padding: 16px;
+          border: 1.5px dashed var(--accent);
+          border-radius: 8px;
+          background: var(--accent-subtle);
+          color: var(--text-secondary, var(--accent));
+          font-size: 12.5px;
+          text-align: center;
+          line-height: 1.4;
+        }
+
+        .image-placeholder.error {
+          border-color: #f87171;
+          background: rgba(248, 113, 113, 0.08);
+          color: #fca5a5;
+        }
+
+        .image-placeholder svg {
+          flex-shrink: 0;
         }
 
         /* Firebase Auth Card Styles */
@@ -720,6 +885,33 @@ export const CanvasElement: React.FC<CanvasElementProps> = ({
           align-items: center;
           gap: 4px;
           font-weight: 500;
+        }
+
+        @media (max-width: 900px), (pointer: coarse) {
+          .selection-badge {
+            height: 32px;
+            top: -34px;
+            padding: 0 8px;
+            gap: 6px;
+            border-radius: 6px 6px 0 0;
+            font-size: 11.5px;
+          }
+
+          .badge-btn {
+            width: 26px;
+            height: 26px;
+            border-radius: 4px;
+          }
+
+          .badge-btn svg {
+            width: 13px;
+            height: 13px;
+          }
+
+          .empty-container-dropzone {
+            min-height: 48px;
+            padding: 16px 12px;
+          }
         }
       `}</style>
     </div>

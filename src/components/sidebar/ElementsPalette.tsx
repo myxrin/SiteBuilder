@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Square,
   Columns,
@@ -15,7 +15,8 @@ import {
   Menu,
   CreditCard,
   Lock,
-  ShieldCheck
+  ShieldCheck,
+  Check
 } from 'lucide-react';
 import { ElementType } from '../../types/document';
 import { useEditor } from '../../context/EditorContext';
@@ -145,9 +146,14 @@ const CATEGORIES: ElementCategory[] = [
 
 export const ElementsPalette: React.FC = () => {
   const { addElement } = useEditor();
+  const [addedToast, setAddedToast] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<number | null>(null);
 
-  const handleAdd = (type: ElementType) => {
+  const handleAdd = (type: ElementType, label: string) => {
     addElement(type);
+    setAddedToast(`Added "${label}" to canvas`);
+    if (toastTimeoutRef.current) window.clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = window.setTimeout(() => setAddedToast(null), 2400);
   };
 
   return (
@@ -156,6 +162,13 @@ export const ElementsPalette: React.FC = () => {
         <span className="palette-title">Add Elements</span>
         <span className="palette-subtitle">Click to add to canvas or container</span>
       </div>
+
+      {addedToast && (
+        <div className="palette-added-toast" role="status" aria-live="polite">
+          <Check size={14} />
+          <span>{addedToast}</span>
+        </div>
+      )}
 
       <div className="categories-list">
         {CATEGORIES.map((cat, idx) => (
@@ -166,8 +179,9 @@ export const ElementsPalette: React.FC = () => {
                 <button
                   key={item.type}
                   className="element-card"
-                  onClick={() => handleAdd(item.type)}
+                  onClick={() => handleAdd(item.type, item.label)}
                   title={`Add ${item.label} to active section`}
+                  aria-label={`Add ${item.label}: ${item.description}`}
                 >
                   <div className="element-icon-box">{item.icon}</div>
                   <div className="element-meta">
@@ -278,6 +292,38 @@ export const ElementsPalette: React.FC = () => {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+        }
+
+        .palette-added-toast {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-bottom: 12px;
+          padding: 8px 10px;
+          background: var(--accent-subtle);
+          border: 1px solid var(--accent-border);
+          border-radius: var(--radius-sm);
+          color: var(--accent);
+          font-size: 11.5px;
+          font-weight: 600;
+          animation: fadeIn 0.15s ease-out;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 900px), (pointer: coarse) {
+          .element-card {
+            min-height: 52px;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .element-card:hover {
+            transform: none;
+          }
         }
       `}</style>
     </div>

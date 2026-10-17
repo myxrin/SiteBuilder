@@ -1,4 +1,3 @@
-import JSZip from 'jszip';
 import { Project, Page, SiteElement, ElementStyles, FirebaseConfig } from '../types/document';
 import {
   escapeHtml,
@@ -197,6 +196,22 @@ img {
   max-width: 100%;
   height: auto;
   display: block;
+}
+
+/* Neutral placeholder shown when no image source is set or the source is unsafe */
+.sb-image-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  background: #e2e8f0;
+  border: 1px dashed #94a3b8;
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  padding: 16px;
 }
 
 a {
@@ -535,13 +550,20 @@ function renderElementToHTML(
 
     case 'image': {
       let src = element.props.src || '';
-      if (assetMap.has(src)) {
+      if (src && assetMap.has(src)) {
         src = assetMap.get(src)!;
-      } else {
+      } else if (src) {
         src = sanitizeUrl(src);
+        // Unsafe/unknown protocols resolve to '#' — fall through to the
+        // neutral placeholder instead of shipping a broken image.
+        if (src === '#') src = '';
       }
       const alt = escapeHtml(element.props.alt || '');
       const fit = element.props.objectFit || 'cover';
+      if (!src) {
+        const label = element.props.alt ? alt : 'Image';
+        return `<div class="${className} sb-image-placeholder" role="img" aria-label="${label}"><span aria-hidden="true">${label}</span></div>`;
+      }
       return `<img src="${escapeHtml(src)}" alt="${alt}" class="${className}" loading="lazy" style="object-fit: ${fit};" />`;
     }
 
@@ -711,6 +733,33 @@ export function generateClientJS(project: Project): string {
       }
     }
 
+    // Maps Firebase error codes to plain-language messages.
+    function friendlyAuthError(error) {
+      var code = (error && error.code) || '';
+      var messages = {
+        'auth/invalid-email': 'That email address looks invalid.',
+        'auth/missing-password': 'Please enter your password.',
+        'auth/user-disabled': 'This account has been disabled.',
+        'auth/user-not-found': 'No account was found with that email address.',
+        'auth/wrong-password': 'Incorrect password. Please try again.',
+        'auth/invalid-credential': 'Incorrect email or password.',
+        'auth/invalid-login-credentials': 'Incorrect email or password.',
+        'auth/email-already-in-use': 'An account with this email already exists. Try signing in instead.',
+        'auth/weak-password': 'Please choose a stronger password (at least 6 characters).',
+        'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.',
+        'auth/network-request-failed': 'Network error - check your connection and try again.',
+        'auth/operation-not-allowed': 'This sign-in method is not enabled for this website yet.',
+        'auth/unauthorized-domain': 'This website domain is not authorized in the Firebase console.',
+        'auth/popup-blocked': 'Your browser blocked the sign-in popup. Redirecting instead...',
+        'auth/popup-closed-by-user': 'The sign-in window was closed before finishing.',
+        'auth/cancelled-popup-request': 'Another sign-in attempt is already in progress.',
+        'auth/account-exists-with-different-credential': 'An account already exists for this email with a different sign-in method.',
+        'auth/missing-email': 'Please enter your email address.'
+      };
+      if (messages[code]) return messages[code];
+      return (error && error.message) || 'Authentication failed. Please try again.';
+    }
+
     Array.prototype.forEach.call(forms, function (form) {
       var configured = form.getAttribute('data-auth-configured') === 'true' && Boolean(auth);
       var redirectUrl = form.getAttribute('data-auth-redirect') || '';
@@ -775,6 +824,7 @@ export function generateClientJS(project: Project): string {
           showMessage('Please fill in both your email and password.', 'error');
           return;
         }
+        if (submitBtn && submitBtn.disabled) return;
 
         if (submitBtn) submitBtn.disabled = true;
         var action = isSignUp
@@ -785,7 +835,7 @@ export function generateClientJS(project: Project): string {
           showMessage(isSignUp ? 'Account created successfully!' : 'Signed in successfully!', 'success');
           goToRedirect();
         }).catch(function (error) {
-          showMessage(error && error.message ? error.message : 'Authentication failed', 'error');
+          showMessage(friendlyAuthError(error), 'error');
         }).then(function () {
           if (submitBtn) submitBtn.disabled = false;
         });
@@ -793,12 +843,31 @@ export function generateClientJS(project: Project): string {
 
       if (googleBtn) {
         googleBtn.addEventListener('click', function () {
+          if (googleBtn.disabled) return;
+          googleBtn.disabled = true;
           var provider = new firebase.auth.GoogleAuthProvider();
+
+          function finish() {
+            googleBtn.disabled = false;
+          }
+
           auth.signInWithPopup(provider).then(function () {
             showMessage('Signed in with Google!', 'success');
             goToRedirect();
+            finish();
           }).catch(function (error) {
-            showMessage(error && error.message ? error.message : 'Google Sign-In failed', 'error');
+            var code = (error && error.code) || '';
+            // Popups blocked (common on mobile browsers) — fall back to the
+            // redirect flow so the visitor can still sign in.
+            if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user' || code === 'auth/web-storage-unsupported') {
+              showMessage(friendlyAuthError(error), 'info');
+              return auth.signInWithRedirect(provider).catch(function (redirectError) {
+                showMessage(friendlyAuthError(redirectError), 'error');
+                finish();
+              });
+            }
+            showMessage(friendlyAuthError(error), 'error');
+            finish();
           });
         });
       }
@@ -965,6 +1034,9 @@ export function collectExportWarnings(project: Project): string[] {
 }
 
 export async function exportProjectToZip(project: Project, options: ExportOptions = {}): Promise<Blob> {
+  // JSZip is ~100 kB of the bundle and is only needed when a ZIP export is
+  // actually requested, so it is loaded on demand.
+  const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
 
   // Asset mapping: Base64/DataURL -> assets/img_1.png
